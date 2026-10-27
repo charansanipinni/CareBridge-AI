@@ -16,6 +16,7 @@ export interface MedicationFact {
   frequency: string | null;        // e.g. "twice daily", "every 12 hours"
   timing: string | null;           // e.g. "with meals", "before breakfast"
   duration: string | null;         // e.g. "5 days"
+  durationDays?: number | null;    // parsed integer days if specified
   evidence: string;                // Exact sentence from source document
   isMissingRequiredField?: boolean;
   missingFields?: string[];
@@ -27,6 +28,7 @@ export interface FollowUpFact {
   exactDate: string | null;        // null if only relative
   exactTime: string | null;
   relativeTimeline: string | null; // e.g. "in seven days"
+  relativeDays?: number | null;    // parsed relative days (e.g. 7, 10, 14)
   isRelativeOnly: boolean;
   missingDetails: string[];
   evidence: string;
@@ -68,17 +70,23 @@ export interface PatientMedicationInstruction {
   route: string;
   whenToTake: string;
   forHowLong: string;
+  durationDays?: number | null;
   purposeOrNote?: string;
   validationStatus: 'MATCHED' | 'DISCREPANCY' | 'UNVERIFIED';
   discrepancyReason?: string;
   sourceEvidence: string;
 }
 
-export interface PatientCarePlanSection {
-  title: string;
-  items: string[];
-  warnings?: string[];
-  clarificationQuestions?: string[];
+export interface DaySchedule {
+  dayNumber: number; // 1 to 7
+  dayLabel: string;  // e.g. "Day 1 (Today)", "Day 2", etc.
+  morning: string[];
+  afternoon: string[];
+  evening: string[];
+  bedtime: string[];
+  woundCare?: string[];
+  notes?: string[];
+  isFollowUpDay?: boolean;
 }
 
 export interface PatientCarePlan {
@@ -106,13 +114,14 @@ export interface PatientCarePlan {
     isWithinTarget: boolean;
     notes: string;
   };
+  sevenDaySchedule: DaySchedule[];
 }
 
 export type CheckSeverity = 'CRITICAL' | 'WARNING' | 'INFO';
 
 export interface ValidationCheck {
   id: string;
-  category: 'MEDICATION' | 'FOLLOW_UP' | 'WARNING_SIGNS' | 'DIET_ACTIVITY' | 'TRANSLATION' | 'CONTRADICTION';
+  category: 'MEDICATION' | 'FOLLOW_UP' | 'WARNING_SIGNS' | 'DIET_ACTIVITY' | 'TRANSLATION' | 'CONTRADICTION' | 'SECURITY';
   title: string;
   detail: string;
   severity: CheckSeverity;
@@ -150,4 +159,6 @@ export interface CareBridgeResult {
   carePlanTelugu: PatientCarePlan;
   faithfulnessReport: FaithfulnessReport;
   faithfulnessReportTelugu: FaithfulnessReport;
+  verificationToken?: string;
+  securityThreats?: string[];
 }

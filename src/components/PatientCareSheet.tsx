@@ -8,7 +8,10 @@ import {
   Pill, 
   ShieldCheck, 
   CheckCircle,
-  HelpCircle
+  HelpCircle,
+  Download,
+  QrCode,
+  FileCode
 } from 'lucide-react';
 import { PatientCarePlan, FaithfulnessReport, ClinicalFacts } from '../types/careplan';
 
@@ -31,8 +34,35 @@ export const PatientCareSheet: React.FC<PatientCareSheetProps> = ({
     window.print();
   };
 
+  const handleDownloadJSON = () => {
+    const exportData = {
+      product: 'CareBridge AI',
+      generatedDate: new Date().toISOString(),
+      language: plan.language,
+      verificationStatus: report.overallStatus,
+      facts,
+      carePlan: plan,
+      validationSummary: {
+        passed: report.passedCount,
+        failed: report.failedCount,
+        unresolved: report.unresolvedCount,
+      },
+    };
+
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `carebridge-care-plan-${plan.language}-${Date.now()}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   const isTelugu = plan.language === 'te';
   const isVerified = report.overallStatus === 'VERIFIED_CONSISTENT';
+  const verificationHash = `CB-${(facts.patientId || 'SYNTH').slice(0, 8)}-${report.passedCount}P${report.failedCount}F`;
 
   const sheetContent = (
     <div className="printable-care-sheet bg-white p-6 sm:p-8 text-slate-900 border sm:border-slate-300 sm:rounded-2xl sm:shadow-lg max-w-4xl mx-auto font-sans">
@@ -53,7 +83,11 @@ export const PatientCareSheet: React.FC<PatientCareSheetProps> = ({
         </div>
 
         <div className="text-right">
-          <div className="inline-block px-2.5 py-1 rounded-md text-[11px] font-bold uppercase tracking-wider bg-slate-100 border border-slate-300 text-slate-800">
+          <div className={`inline-block px-2.5 py-1 rounded-md text-[11px] font-bold uppercase tracking-wider border ${
+            isVerified 
+              ? 'bg-emerald-50 text-emerald-800 border-emerald-300' 
+              : 'bg-rose-50 text-rose-800 border-rose-300'
+          }`}>
             {isVerified ? 'VERIFIED CONSISTENT' : 'NEEDS CLINICIAN REVIEW'}
           </div>
           <p className="text-[10px] text-slate-500 mt-1">
@@ -175,8 +209,8 @@ export const PatientCareSheet: React.FC<PatientCareSheetProps> = ({
 
         {plan.warningSigns.urgentSigns.length > 0 && (
           <ul className="list-disc pl-4 space-y-1 text-xs text-rose-950 font-semibold mb-2">
-            {plan.warningSigns.urgentSigns.map((s, idx) => (
-              <li key={idx}>{s}</li>
+            {plan.warningSigns.urgentSigns.map((sign, idx) => (
+              <li key={idx}>{sign}</li>
             ))}
           </ul>
         )}
@@ -225,8 +259,10 @@ export const PatientCareSheet: React.FC<PatientCareSheetProps> = ({
 
       {/* Signature & Verification Footer */}
       <div className="border-t border-slate-300 pt-3 flex flex-col sm:flex-row items-center justify-between text-[10px] text-slate-500 page-break-inside-avoid">
-        <div>
-          <span>CareBridge AI v1.0 • AVENGERS Hackathon Prototype • Readability: {plan.readabilityScore.targetGrade}</span>
+        <div className="flex items-center space-x-2">
+          <span>CareBridge AI v1.0 • AVENGERS Prototype</span>
+          <span>•</span>
+          <span className="font-mono bg-slate-100 px-1.5 py-0.2 rounded border border-slate-200">ID: {verificationHash}</span>
         </div>
         <div className="mt-2 sm:mt-0 flex items-center space-x-6">
           <span>Clinician Signature: _______________________</span>
@@ -247,13 +283,20 @@ export const PatientCareSheet: React.FC<PatientCareSheetProps> = ({
               <Printer className="w-5 h-5 text-teal-400" />
               <span className="font-bold text-sm">Printable Patient Care Sheet (A4 Format)</span>
             </div>
-            <div className="flex items-center space-x-3">
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={handleDownloadJSON}
+                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs rounded-lg shadow-xs flex items-center space-x-1 transition"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>JSON</span>
+              </button>
               <button
                 onClick={handlePrint}
-                className="px-4 py-2 bg-teal-500 hover:bg-teal-600 text-slate-900 font-bold text-xs rounded-lg shadow-sm flex items-center space-x-1.5 transition"
+                className="px-4 py-1.5 bg-teal-500 hover:bg-teal-600 text-slate-900 font-bold text-xs rounded-lg shadow-sm flex items-center space-x-1.5 transition"
               >
                 <Printer className="w-4 h-4" />
-                <span>Print / Save as PDF</span>
+                <span>Print / Save PDF</span>
               </button>
               {onClose && (
                 <button
@@ -284,13 +327,22 @@ export const PatientCareSheet: React.FC<PatientCareSheetProps> = ({
             Formatted specifically for A4 printing or browser PDF export with zero dashboard clutter
           </p>
         </div>
-        <button
-          onClick={handlePrint}
-          className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl shadow-xs flex items-center space-x-1.5 transition"
-        >
-          <Printer className="w-4 h-4 text-teal-400" />
-          <span>Print / Save PDF</span>
-        </button>
+        <div className="flex items-center space-x-2">
+          <button
+            onClick={handleDownloadJSON}
+            className="px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 font-bold text-xs rounded-xl shadow-2xs flex items-center space-x-1.5 transition"
+          >
+            <Download className="w-4 h-4 text-slate-500" />
+            <span>Export JSON</span>
+          </button>
+          <button
+            onClick={handlePrint}
+            className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl shadow-xs flex items-center space-x-1.5 transition"
+          >
+            <Printer className="w-4 h-4 text-teal-400" />
+            <span>Print / Save PDF</span>
+          </button>
+        </div>
       </div>
 
       {sheetContent}

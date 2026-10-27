@@ -1,14 +1,15 @@
 import React from 'react';
-import { ShieldCheck, HeartPulse, Sparkles, FileText, Printer, AlertTriangle } from 'lucide-react';
+import { HeartPulse, Sparkles, Printer, Layers, WifiOff } from 'lucide-react';
 import { ProcessingMode } from '../types/careplan';
 
 interface NavbarProps {
   mode: ProcessingMode;
   onOpenPrint?: () => void;
+  onOpenArchitecture?: () => void;
   hasResult: boolean;
 }
 
-export const Navbar: React.FC<NavbarProps> = ({ mode, onOpenPrint, hasResult }) => {
+export const Navbar: React.FC<NavbarProps> = ({ mode, onOpenPrint, onOpenArchitecture, hasResult }) => {
   return (
     <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200 shadow-xs no-print">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-18 flex items-center justify-between">
@@ -30,13 +31,24 @@ export const Navbar: React.FC<NavbarProps> = ({ mode, onOpenPrint, hasResult }) 
         </div>
 
         {/* Status Pills & Actions */}
-        <div className="flex items-center space-x-3">
+        <div className="flex items-center space-x-2 sm:space-x-3">
+          {/* Architecture Modal Action */}
+          {onOpenArchitecture && (
+            <button
+              onClick={onOpenArchitecture}
+              className="hidden sm:inline-flex items-center px-3 py-1.5 text-xs font-bold rounded-lg text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-300 transition"
+            >
+              <Layers className="w-3.5 h-3.5 mr-1.5 text-teal-700" />
+              <span>Architecture</span>
+            </button>
+          )}
+
           {/* Demo Mode or AI Indicator */}
           <div className="flex items-center">
             {mode === 'DEMO' ? (
               <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-amber-50 text-amber-900 border border-amber-300 shadow-xs">
                 <span className="w-2 h-2 mr-1.5 bg-amber-500 rounded-full animate-pulse"></span>
-                Demo Mode (Deterministic)
+                Offline Demo Mode
               </span>
             ) : (
               <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-xs">

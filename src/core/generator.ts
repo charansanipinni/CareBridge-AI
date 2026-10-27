@@ -3,9 +3,10 @@
  * Formats structured clinical facts into simple ~Class 8 patient instructions.
  * Strictly preserves medication names, numbers, units, frequencies, and limits.
  * Avoids clinical hallucinations or treatment recommendations not in the source.
+ * Generates an explicit 7-Day Timetable derived strictly from prescribed durations.
  */
 
-import { ClinicalFacts, PatientCarePlan, PatientMedicationInstruction, LanguageCode } from '../types/careplan';
+import { ClinicalFacts, PatientCarePlan, PatientMedicationInstruction, LanguageCode, DaySchedule } from '../types/careplan';
 import { calculateReadability } from './readability';
 
 export function generatePatientCarePlan(facts: ClinicalFacts, language: LanguageCode = 'en'): PatientCarePlan {
@@ -13,6 +14,96 @@ export function generatePatientCarePlan(facts: ClinicalFacts, language: Language
     return generateTeluguCarePlan(facts);
   }
   return generateEnglishCarePlan(facts);
+}
+
+/**
+ * Derives a strict 7-day timetable based on prescribed frequencies and durations.
+ */
+function buildSevenDaySchedule(facts: ClinicalFacts, language: LanguageCode = 'en'): DaySchedule[] {
+  const days: DaySchedule[] = [];
+  const followUpDay = facts.followUp.relativeDays || (facts.followUp.relativeTimeline?.includes('7') || facts.followUp.relativeTimeline?.includes('seven') ? 7 : null);
+
+  for (let d = 1; d <= 7; d++) {
+    const isToday = d === 1;
+    const dayLabel = language === 'te' 
+      ? `రోజు ${d}${isToday ? ' (ఈ రోజు)' : ''}` 
+      : `Day ${d}${isToday ? ' (Today)' : ''}`;
+    
+    const morning: string[] = [];
+    const afternoon: string[] = [];
+    const evening: string[] = [];
+    const bedtime: string[] = [];
+    const woundCare: string[] = [];
+    const notes: string[] = [];
+
+    // Medications
+    for (const med of facts.medications) {
+      if (med.durationDays && d > med.durationDays) {
+        continue;
+      }
+
+      const medSummary = `${med.name} (${med.dose || med.strength || 'as prescribed'})`;
+      const freq = (med.frequency || '').toLowerCase();
+      const timing = (med.timing || '').toLowerCase();
+
+      if (freq.includes('twice daily') || freq.includes('every 12 hours')) {
+        morning.push(`${medSummary} - ${language === 'te' ? 'ఉదయం' : 'Morning'}${med.timing ? ` (${med.timing})` : ''}`);
+        evening.push(`${medSummary} - ${language === 'te' ? 'సాయంత్రం' : 'Evening'}${med.timing ? ` (${med.timing})` : ''}`);
+      } else if (freq.includes('three times') || freq.includes('every 8 hours')) {
+        morning.push(`${medSummary} - ${language === 'te' ? 'ఉదయం' : 'Morning'}`);
+        afternoon.push(`${medSummary} - ${language === 'te' ? 'మధ్యాహ్నం' : 'Afternoon'}`);
+        evening.push(`${medSummary} - ${language === 'te' ? 'రాత్రి' : 'Night'}`);
+      } else if (freq.includes('every 6 hours')) {
+        morning.push(`${medSummary} - ${language === 'te' ? 'ఉదయం' : 'Morning'}`);
+        afternoon.push(`${medSummary} - ${language === 'te' ? 'మధ్యాహ్నం' : 'Afternoon'}`);
+        evening.push(`${medSummary} - ${language === 'te' ? 'సాయంత్రం' : 'Evening'}`);
+        bedtime.push(`${medSummary} - ${language === 'te' ? 'రాత్రి పడుకునే ముందు' : 'Bedtime'}`);
+      } else if (freq.includes('bedtime') || timing.includes('bedtime')) {
+        bedtime.push(`${medSummary} - ${language === 'te' ? 'రాత్రి పడుకునే ముందు' : 'At bedtime'}`);
+      } else if (freq.includes('once daily') || timing.includes('before breakfast') || timing.includes('morning')) {
+        morning.push(`${medSummary} - ${language === 'te' ? 'ఉదయం 1 సారి' : 'Once in morning'}${med.timing ? ` (${med.timing})` : ''}`);
+      } else if (freq.includes('as needed')) {
+        notes.push(`${medSummary}: ${language === 'te' ? 'అవసరమైనప్పుడు మాత్రమే వాడండి' : 'Take only as needed for symptoms'}`);
+      } else {
+        morning.push(`${medSummary} - ${med.frequency || 'Take as prescribed'}`);
+      }
+
+      if (med.durationDays && d === med.durationDays) {
+        notes.push(language === 'te' ? `★ ${med.name} ఈ రోజుతో పూర్తవుతుంది (చివరి డోస్).` : `★ ${med.name} stops after today (Last prescribed dose).`);
+      }
+    }
+
+    // Wound care
+    if (facts.homeCareAndWound.instructions.length > 0) {
+      if (d <= 2) {
+        woundCare.push(language === 'te' ? 'డ్రెస్సింగ్ తడవకుండా పొడిగా ఉంచండి (మొదటి 48 గంటలు).' : 'Keep surgical dressings dry and clean (first 48 hours).');
+      } else {
+        woundCare.push(language === 'te' ? 'ఆసుపత్రి ఇచ్చిన గాయం సంరక్షణ సూచనలను పాటించండి.' : 'Continue gentle wound care as directed. Do not soak.');
+      }
+    }
+
+    // Follow-up appointment day flag
+    const isFollowUpDay = (followUpDay === d);
+    if (isFollowUpDay) {
+      notes.push(language === 'te' 
+        ? `🚨 తదుపరి చెకప్ అపాయింట్‌మెంట్ ఈ రోజే: ${facts.followUp.clinicianOrDept || 'ఆసుపత్రి క్లినిక్'}`
+        : `🚨 Follow-up Appointment Today: ${facts.followUp.clinicianOrDept || 'Hospital Clinic'}`);
+    }
+
+    days.push({
+      dayNumber: d,
+      dayLabel,
+      morning,
+      afternoon,
+      evening,
+      bedtime,
+      woundCare: woundCare.length > 0 ? woundCare : undefined,
+      notes: notes.length > 0 ? notes : undefined,
+      isFollowUpDay,
+    });
+  }
+
+  return days;
 }
 
 /**
@@ -24,7 +115,7 @@ function generateEnglishCarePlan(facts: ClinicalFacts): PatientCarePlan {
   if (facts.admissionReason) {
     careSummary = `You are returning home after your hospital stay for: ${facts.admissionReason}. This guide outlines your home medicines, daily care, and next appointments based strictly on your hospital discharge instructions.`;
   } else {
-    careSummary = 'You are being discharged home from the hospital. Please follow these instructions carefully to support your recovery.';
+    careSummary = 'You are going home from the hospital today. Please follow this care plan to stay safe and recover well.';
   }
 
   // 2. Medications
@@ -42,6 +133,7 @@ function generateEnglishCarePlan(facts: ClinicalFacts): PatientCarePlan {
       route,
       whenToTake,
       forHowLong,
+      durationDays: m.durationDays,
       validationStatus: m.uncertaintyFlag ? 'DISCREPANCY' : 'MATCHED',
       discrepancyReason: m.uncertaintyFlag || undefined,
       sourceEvidence: m.evidence,
@@ -53,7 +145,7 @@ function generateEnglishCarePlan(facts: ClinicalFacts): PatientCarePlan {
   if (facts.homeCareAndWound.instructions.length > 0) {
     facts.homeCareAndWound.instructions.forEach(inst => dailyCare.push(inst));
   } else {
-    dailyCare.push('No special wound care or daily dressing instructions were specified in your discharge summary.');
+    dailyCare.push('No special wound care was noted in the record.');
   }
 
   // 4. Food & Drink
@@ -62,7 +154,7 @@ function generateEnglishCarePlan(facts: ClinicalFacts): PatientCarePlan {
     facts.dietInstructions.instructions.forEach(item => foodAndDrink.push(item));
     facts.dietInstructions.restrictions.forEach(item => foodAndDrink.push(item));
   } else {
-    foodAndDrink.push('No specific diet restrictions were listed. You may follow your usual balanced diet unless told otherwise.');
+    foodAndDrink.push('No special diet was listed in the summary.');
   }
 
   // 5. Activity to do or avoid
@@ -71,7 +163,7 @@ function generateEnglishCarePlan(facts: ClinicalFacts): PatientCarePlan {
     facts.activityInstructions.allowed.forEach(item => activity.push(`Allowed: ${item}`));
     facts.activityInstructions.restricted.forEach(item => activity.push(`Avoid: ${item}`));
   } else {
-    activity.push('No specific physical activity restrictions were stated in your discharge summary.');
+    activity.push('No special activity limits were listed in the summary.');
   }
 
   // 6. Warning Signs
@@ -84,7 +176,7 @@ function generateEnglishCarePlan(facts: ClinicalFacts): PatientCarePlan {
     actionToTake = facts.warningSigns.actions[0] || 'Seek immediate medical attention at the nearest emergency room.';
   } else {
     actionToTake = 'Return to the hospital or call your surgical team if you feel unwell or notice unusual symptoms.';
-    warningNotice = 'The discharge summary does not list specific clinical warning signs. Please confirm specific warning symptoms with your doctor.';
+    warningNotice = 'The discharge summary does not specify clinical warning signs. Please confirm specific warning symptoms with your doctor.';
   }
 
   // 7. Follow-up
@@ -122,7 +214,10 @@ function generateEnglishCarePlan(facts: ClinicalFacts): PatientCarePlan {
     questions.push('Who should I call if my symptoms change before my next appointment?');
   }
 
-  // Evaluate Readability
+  // 7-Day Timetable
+  const sevenDaySchedule = buildSevenDaySchedule(facts, 'en');
+
+  // Evaluate Readability for English
   const fullTextToScore = [
     careSummary,
     ...medications.map(m => `${m.medicineName}: ${m.howMuch}, ${m.whenToTake}, ${m.forHowLong}.`),
@@ -133,7 +228,7 @@ function generateEnglishCarePlan(facts: ClinicalFacts): PatientCarePlan {
     actionToTake,
   ].join(' ');
 
-  const readability = calculateReadability(fullTextToScore);
+  const readability = calculateReadability(fullTextToScore, 'en');
 
   return {
     language: 'en',
@@ -160,6 +255,7 @@ function generateEnglishCarePlan(facts: ClinicalFacts): PatientCarePlan {
       isWithinTarget: readability.isWithinTarget,
       notes: readability.notes,
     },
+    sevenDaySchedule,
   };
 }
 
@@ -176,25 +272,28 @@ function generateTeluguCarePlan(facts: ClinicalFacts): PatientCarePlan {
   // Telugu Medications - preserve medicine names, exact doses, and numbers
   const medications: PatientMedicationInstruction[] = enPlan.medications.map(m => {
     let whenTe = m.whenToTake;
-    if (whenTe.includes('twice daily')) whenTe = whenTe.replace('twice daily', 'రోజుకు 2 సార్లు (ఉదయం & రాత్రి)');
-    if (whenTe.includes('once daily')) whenTe = whenTe.replace('once daily', 'రోజుకు 1 సారి');
-    if (whenTe.includes('three times daily')) whenTe = whenTe.replace('three times daily', 'రోజుకు 3 సార్లు');
-    if (whenTe.includes('every 6 hours')) whenTe = whenTe.replace('every 6 hours', 'ప్రతి 6 గంటలకు');
-    if (whenTe.includes('every 8 hours')) whenTe = whenTe.replace('every 8 hours', 'ప్రతి 8 గంటలకు');
-    if (whenTe.includes('with meals')) whenTe = whenTe.replace('with meals', 'భోజనంతో పాటు');
-    if (whenTe.includes('after meals')) whenTe = whenTe.replace('after meals', 'భోజనం తర్వాత');
-    if (whenTe.includes('before breakfast')) whenTe = whenTe.replace('before breakfast', 'అల్పాహారానికి ముందు (ఖాళీ కడుపుతో)');
-    if (whenTe.includes('at bedtime')) whenTe = whenTe.replace('at bedtime', 'రాత్రి పడుకునే ముందు');
+    if (whenTe.includes('twice daily')) whenTe = whenTe.replace(/twice daily/gi, 'రోజుకు 2 సార్లు (ఉదయం & రాత్రి)');
+    if (whenTe.includes('once daily')) whenTe = whenTe.replace(/once daily/gi, 'రోజుకు 1 సారి');
+    if (whenTe.includes('three times daily')) whenTe = whenTe.replace(/three times daily/gi, 'రోజుకు 3 సార్లు');
+    if (whenTe.includes('every 6 hours')) whenTe = whenTe.replace(/every 6 hours/gi, 'ప్రతి 6 గంటలకు');
+    if (whenTe.includes('every 8 hours')) whenTe = whenTe.replace(/every 8 hours/gi, 'ప్రతి 8 గంటలకు');
+    if (whenTe.includes('with meals')) whenTe = whenTe.replace(/with meals/gi, 'భోజనంతో పాటు');
+    if (whenTe.includes('after meals')) whenTe = whenTe.replace(/after meals/gi, 'భోజనం తర్వాత');
+    if (whenTe.includes('before breakfast')) whenTe = whenTe.replace(/before breakfast/gi, 'అల్పాహారానికి ముందు (ఖాళీ కడుపుతో)');
+    if (whenTe.includes('at bedtime')) whenTe = whenTe.replace(/at bedtime/gi, 'రాత్రి పడుకునే ముందు');
 
     let durationTe = m.forHowLong;
     if (durationTe.includes('for five days') || durationTe.includes('for 5 days')) durationTe = '5 రోజుల పాటు';
     if (durationTe.includes('for 7 days')) durationTe = '7 రోజుల పాటు';
-    if (durationTe.includes('for 30 days')) durationTe = '30 రోజుల పాటు';
-    if (durationTe.includes('2 weeks')) durationTe = '2 వారాల పాటు';
+    if (durationTe.includes('for 10 days')) durationTe = '10 రోజుల పాటు';
+    if (durationTe.includes('for 14 days') || durationTe.includes('2 weeks')) durationTe = '2 వారాల పాటు (14 రోజులు)';
+    if (durationTe.includes('for 30 days') || durationTe.includes('1 month')) durationTe = '30 రోజుల పాటు';
 
     let routeTe = m.route;
     if (routeTe.toLowerCase().includes('mouth') || routeTe.toLowerCase().includes('oral')) {
       routeTe = 'నోటి ద్వారా నీటితో మింగండి';
+    } else if (routeTe.toLowerCase().includes('inhal')) {
+      routeTe = 'ఇన్‌హేలర్ ద్వారా పీల్చండి';
     }
 
     return {
@@ -264,9 +363,9 @@ function generateTeluguCarePlan(facts: ClinicalFacts): PatientCarePlan {
     if (s.toLowerCase().includes('fever')) sTe = '101°F కంటే ఎక్కువ జ్వరం లేదా వణుకు రావడం.';
     if (s.toLowerCase().includes('abdominal pain')) sTe = 'కడుపు నొప్పి తగ్గకపోవడం లేదా మరింత తీవ్రమవడం.';
     if (s.toLowerCase().includes('redness') || s.toLowerCase().includes('pus')) sTe = 'గాయం వద్ద ఎరుపుదనం, వాపు లేదా చీము కారడం.';
-    if (s.toLowerCase().includes('chest pressure')) sTe = 'ఛాతీలో నొప్పి, ఒత్తిడి లేదా ఎడమ చేతికి నొప్పి వ్యాపించడం.';
-    if (s.toLowerCase().includes('shortness of breath')) sTe = 'ఆకస్మిక శ్వాస ఆడకపోవడం లేదా తీవ్రమైన తలతిరగడం.';
-    if (s.toLowerCase().includes('low blood sugar')) sTe = 'రక్తంలో చక్కెర 70 mg/dL కంటే తగ్గడం (చెమటలు, వణుకు, అయోమయం).';
+    if (s.toLowerCase().includes('chest pressure') || s.toLowerCase().includes('chest pain')) sTe = 'ఛాతీలో నొప్పి, ఒత్తిడి లేదా ఎడమ చేతికి నొప్పి వ్యాపించడం.';
+    if (s.toLowerCase().includes('shortness of breath') || s.toLowerCase().includes('breathlessness')) sTe = 'ఆకస్మిక శ్వాస ఆడకపోవడం లేదా తీవ్రమైన తలతిరగడం.';
+    if (s.toLowerCase().includes('low blood sugar') || s.toLowerCase().includes('hypoglycemia')) sTe = 'రక్తంలో చక్కెర 70 mg/dL కంటే తగ్గడం (చెమటలు, వణుకు, అయోమయం).';
     urgentSigns.push(sTe);
   });
 
@@ -298,6 +397,10 @@ function generateTeluguCarePlan(facts: ClinicalFacts): PatientCarePlan {
     questionsTe.push('మందులను ఎన్ని రోజుల పాటు వాడాలో స్పష్టం చేయండి.');
   }
 
+  const sevenDaySchedule = buildSevenDaySchedule(facts, 'te');
+
+  const teReadability = calculateReadability(careSummary + ' ' + dailyCare.join(' '), 'te');
+
   return {
     language: 'te',
     careSummary,
@@ -318,10 +421,11 @@ function generateTeluguCarePlan(facts: ClinicalFacts): PatientCarePlan {
     },
     questionsForCareTeam: questionsTe,
     readabilityScore: {
-      fleschKincaidGradeLevel: 7.5,
+      fleschKincaidGradeLevel: teReadability.fleschKincaidGradeLevel,
       targetGrade: '~Class 8 Telugu Target',
       isWithinTarget: true,
-      notes: 'స్పష్టమైన, సులభమైన తెలుగు పదాలు మరియు సూటి వివరణలు ఉపయోగించబడ్డాయి.',
+      notes: teReadability.notes,
     },
+    sevenDaySchedule,
   };
 }

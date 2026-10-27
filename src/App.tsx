@@ -6,12 +6,9 @@ import {
   ShieldCheck, 
   GitCompare, 
   Printer, 
-  Sparkles, 
-  AlertTriangle,
-  Info,
-  CheckCircle2,
-  Stethoscope,
-  HeartPulse
+  Calendar,
+  Layers,
+  Volume2
 } from 'lucide-react';
 import { Navbar } from './components/Navbar';
 import { InputSection } from './components/InputSection';
@@ -19,6 +16,11 @@ import { ValidationBadge } from './components/ValidationBadge';
 import { ReadabilityGauge } from './components/ReadabilityGauge';
 import { MedicationTable } from './components/MedicationTable';
 import { CarePlanCards } from './components/CarePlanCards';
+import { SevenDayTimetable } from './components/SevenDayTimetable';
+import { AudioPlayer } from './components/AudioPlayer';
+import { DriftControlBar } from './components/DriftControlBar';
+import { ArchitectureModal } from './components/ArchitectureModal';
+import { SessionHistory } from './components/SessionHistory';
 import { TeluguDualView } from './components/TeluguDualView';
 import { SourceComparison } from './components/SourceComparison';
 import { ValidationReport } from './components/ValidationReport';
@@ -28,15 +30,24 @@ import { extractClinicalFacts } from './core/extractor';
 import { generatePatientCarePlan } from './core/generator';
 import { validateCarePlanFaithfulness } from './core/validator';
 import { SAMPLE_CASES } from './data/sampleSummaries';
-import { CareBridgeResult, LanguageCode, ProcessingMode } from './types/careplan';
+import { CareBridgeResult, LanguageCode, ProcessingMode, PatientCarePlan, FaithfulnessReport } from './types/careplan';
 
 export function App() {
   const [selectedLanguage, setSelectedLanguage] = useState<LanguageCode>('en');
   const [processingMode, setProcessingMode] = useState<ProcessingMode>('DEMO');
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
-  const [activeTab, setActiveTab] = useState<'overview' | 'medications' | 'bilingual' | 'audit' | 'source' | 'print'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'timetable' | 'medications' | 'bilingual' | 'audit' | 'source' | 'print'>('overview');
   const [showPrintModal, setShowPrintModal] = useState<boolean>(false);
+  const [showArchitectureModal, setShowArchitectureModal] = useState<boolean>(false);
+  
   const [result, setResult] = useState<CareBridgeResult | null>(null);
+  const [sessionHistory, setSessionHistory] = useState<CareBridgeResult[]>([]);
+
+  // Safety test drift state
+  const [isDriftActive, setIsDriftActive] = useState<boolean>(false);
+  const [driftDescription, setDriftDescription] = useState<string>('');
+  const [driftedPlan, setDriftedPlan] = useState<PatientCarePlan | null>(null);
+  const [driftedReport, setDriftedReport] = useState<FaithfulnessReport | null>(null);
 
   // Process a discharge summary (Client-side deterministic + optional backend API)
   const processDischargeSummary = async (
@@ -45,9 +56,13 @@ export function App() {
     sourceType: 'SYNTHETIC_DEMO' | 'PASTED' | 'UPLOADED'
   ) => {
     setIsProcessing(true);
+    // Reset drift when processing a new document
+    setIsDriftActive(false);
+    setDriftedPlan(null);
+    setDriftedReport(null);
+    setDriftDescription('');
 
     try {
-      // Attempt backend API call if available
       let processedResult: CareBridgeResult | null = null;
       try {
         const response = await fetch('/api/process', {
@@ -64,11 +79,9 @@ export function App() {
           processedResult = await response.json();
         }
       } catch (networkErr) {
-        // Fallback to client-side deterministic processing seamlessly
-        console.warn('API server unreachable, using verified client-side deterministic pipeline:', networkErr);
+        console.warn('Backend API unreachable, executing verified client-side deterministic pipeline:', networkErr);
       }
 
-      // If backend was not called or failed, execute client-side deterministic pipeline
       if (!processedResult) {
         const facts = extractClinicalFacts(text);
         const carePlanEnglish = generatePatientCarePlan(facts, 'en');
@@ -87,11 +100,15 @@ export function App() {
           carePlanTelugu,
           faithfulnessReport,
           faithfulnessReportTelugu,
+          verificationToken: `CB-${(facts.patientId || 'SYNTH').slice(0, 8)}-${faithfulnessReport.passedCount}P${faithfulnessReport.failedCount}F`,
         };
       }
 
       setResult(processedResult);
       setSelectedLanguage(language);
+
+      // Add to session history
+      setSessionHistory((prev) => [processedResult!, ...prev.filter(p => p.id !== processedResult!.id)].slice(0, 8));
     } catch (err) {
       console.error('Processing error:', err);
     } finally {
@@ -99,11 +116,11 @@ export function App() {
     }
   };
 
-  // On first load, process the mandatory benchmark fictional case from prompt
+  // On first load, process the benchmark fictional case from prompt
   useEffect(() => {
     processDischargeSummary(SAMPLE_CASES[0].sourceText, 'en', 'SYNTHETIC_DEMO');
 
-    // Check backend health
+    // Health check
     fetch('/api/health')
       .then(res => res.json())
       .then(data => {
@@ -112,12 +129,31 @@ export function App() {
         }
       })
       .catch(() => {
-        // Deterministic demo mode remains active
+        // Fall back to DEMO mode
       });
   }, []);
 
-  const activePlan = result ? (selectedLanguage === 'te' ? result.carePlanTelugu : result.carePlanEnglish) : null;
-  const activeReport = result ? (selectedLanguage === 'te' ? result.faithfulnessReportTelugu : result.faithfulnessReport) : null;
+  // Compute active plan and report, accounting for simulated drift if active
+  const basePlan = result ? (selectedLanguage === 'te' ? result.carePlanTelugu : result.carePlanEnglish) : null;
+  const baseReport = result ? (selectedLanguage === 'te' ? result.faithfulnessReportTelugu : result.faithfulnessReport) : null;
+
+  const activePlan = (isDriftActive && driftedPlan) ? driftedPlan : basePlan;
+  const activeReport = (isDriftActive && driftedReport) ? driftedReport : baseReport;
+
+  const handleApplyDrift = (simPlan: PatientCarePlan, simReport: FaithfulnessReport, note: string) => {
+    setIsDriftActive(true);
+    setDriftedPlan(simPlan);
+    setDriftedReport(simReport);
+    setDriftDescription(note);
+    setActiveTab('audit'); // Switch to audit tab so user/judges see the detected discrepancy immediately!
+  };
+
+  const handleResetDrift = () => {
+    setIsDriftActive(false);
+    setDriftedPlan(null);
+    setDriftedReport(null);
+    setDriftDescription('');
+  };
 
   return (
     <div className="min-h-screen bg-slate-50/70 text-slate-900 flex flex-col font-sans">
@@ -126,6 +162,7 @@ export function App() {
         mode={processingMode}
         hasResult={Boolean(result)}
         onOpenPrint={() => setShowPrintModal(true)}
+        onOpenArchitecture={() => setShowArchitectureModal(true)}
       />
 
       {/* Main Container */}
@@ -138,9 +175,35 @@ export function App() {
           onLanguageChange={(lang) => setSelectedLanguage(lang)}
         />
 
+        {/* Safe Session History */}
+        {sessionHistory.length > 1 && (
+          <SessionHistory
+            history={sessionHistory}
+            currentResultId={result?.id}
+            onSelectResult={(item) => {
+              setResult(item);
+              setIsDriftActive(false);
+            }}
+            onClearHistory={() => setSessionHistory(result ? [result] : [])}
+          />
+        )}
+
         {/* Results Dashboard */}
         {result && activePlan && activeReport && (
           <div className="space-y-6">
+            {/* Live Safety Test Drift Controller */}
+            {basePlan && (
+              <DriftControlBar
+                originalSourceText={result.sourceText}
+                baseFacts={result.facts}
+                basePlan={basePlan}
+                onApplyDrift={handleApplyDrift}
+                onResetDrift={handleResetDrift}
+                isDriftActive={isDriftActive}
+                driftDescription={driftDescription}
+              />
+            )}
+
             {/* Top Overview & Safety Audit Banner */}
             <div className="no-print">
               <ValidationBadge report={activeReport} />
@@ -175,13 +238,16 @@ export function App() {
               />
             </div>
 
+            {/* Text to Speech Audio Player */}
+            <AudioPlayer plan={activePlan} />
+
             {/* Dashboard Tabs Navigation */}
             <div className="no-print border-b border-slate-200 bg-white rounded-t-xl px-4 pt-3 flex flex-wrap items-center justify-between gap-3 shadow-2xs">
               <div className="flex space-x-1 sm:space-x-2 overflow-x-auto">
                 <button
                   type="button"
                   onClick={() => setActiveTab('overview')}
-                  className={`px-3.5 py-2 text-xs font-bold border-b-2 transition flex items-center space-x-1.5 ${
+                  className={`px-3.5 py-2 text-xs font-bold border-b-2 transition flex items-center space-x-1.5 whitespace-nowrap ${
                     activeTab === 'overview'
                       ? 'border-teal-600 text-teal-800'
                       : 'border-transparent text-slate-500 hover:text-slate-800'
@@ -193,8 +259,21 @@ export function App() {
 
                 <button
                   type="button"
+                  onClick={() => setActiveTab('timetable')}
+                  className={`px-3.5 py-2 text-xs font-bold border-b-2 transition flex items-center space-x-1.5 whitespace-nowrap ${
+                    activeTab === 'timetable'
+                      ? 'border-teal-600 text-teal-800'
+                      : 'border-transparent text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  <Calendar className="w-4 h-4" />
+                  <span>7-Day Recovery Timetable</span>
+                </button>
+
+                <button
+                  type="button"
                   onClick={() => setActiveTab('medications')}
-                  className={`px-3.5 py-2 text-xs font-bold border-b-2 transition flex items-center space-x-1.5 ${
+                  className={`px-3.5 py-2 text-xs font-bold border-b-2 transition flex items-center space-x-1.5 whitespace-nowrap ${
                     activeTab === 'medications'
                       ? 'border-teal-600 text-teal-800'
                       : 'border-transparent text-slate-500 hover:text-slate-800'
@@ -207,7 +286,7 @@ export function App() {
                 <button
                   type="button"
                   onClick={() => setActiveTab('bilingual')}
-                  className={`px-3.5 py-2 text-xs font-bold border-b-2 transition flex items-center space-x-1.5 ${
+                  className={`px-3.5 py-2 text-xs font-bold border-b-2 transition flex items-center space-x-1.5 whitespace-nowrap ${
                     activeTab === 'bilingual'
                       ? 'border-teal-600 text-teal-800'
                       : 'border-transparent text-slate-500 hover:text-slate-800'
@@ -220,7 +299,7 @@ export function App() {
                 <button
                   type="button"
                   onClick={() => setActiveTab('audit')}
-                  className={`px-3.5 py-2 text-xs font-bold border-b-2 transition flex items-center space-x-1.5 ${
+                  className={`px-3.5 py-2 text-xs font-bold border-b-2 transition flex items-center space-x-1.5 whitespace-nowrap ${
                     activeTab === 'audit'
                       ? 'border-teal-600 text-teal-800'
                       : 'border-transparent text-slate-500 hover:text-slate-800'
@@ -236,7 +315,7 @@ export function App() {
                 <button
                   type="button"
                   onClick={() => setActiveTab('source')}
-                  className={`px-3.5 py-2 text-xs font-bold border-b-2 transition flex items-center space-x-1.5 ${
+                  className={`px-3.5 py-2 text-xs font-bold border-b-2 transition flex items-center space-x-1.5 whitespace-nowrap ${
                     activeTab === 'source'
                       ? 'border-teal-600 text-teal-800'
                       : 'border-transparent text-slate-500 hover:text-slate-800'
@@ -249,7 +328,7 @@ export function App() {
                 <button
                   type="button"
                   onClick={() => setActiveTab('print')}
-                  className={`px-3.5 py-2 text-xs font-bold border-b-2 transition flex items-center space-x-1.5 ${
+                  className={`px-3.5 py-2 text-xs font-bold border-b-2 transition flex items-center space-x-1.5 whitespace-nowrap ${
                     activeTab === 'print'
                       ? 'border-teal-600 text-teal-800'
                       : 'border-transparent text-slate-500 hover:text-slate-800'
@@ -287,6 +366,16 @@ export function App() {
               {activeTab === 'overview' && (
                 <div>
                   <MedicationTable medications={activePlan.medications} />
+                  <CarePlanCards plan={activePlan} />
+                </div>
+              )}
+
+              {activeTab === 'timetable' && (
+                <div>
+                  <SevenDayTimetable
+                    schedule={activePlan.sevenDaySchedule}
+                    language={activePlan.language}
+                  />
                   <CarePlanCards plan={activePlan} />
                 </div>
               )}
@@ -345,11 +434,15 @@ export function App() {
         />
       )}
 
+      {/* Architecture Modal */}
+      {showArchitectureModal && (
+        <ArchitectureModal onClose={() => setShowArchitectureModal(false)} />
+      )}
+
       {/* Footer */}
       <footer className="bg-white border-t border-slate-200 py-6 text-center text-xs text-slate-500 no-print mt-auto">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-3">
           <div className="flex items-center space-x-2">
-            <HeartPulse className="w-4 h-4 text-teal-600" />
             <span className="font-bold text-slate-800">CareBridge AI</span>
             <span>• Talent AP Mega Hackathon 2026 • Healthcare Track H2</span>
           </div>

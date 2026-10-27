@@ -6,10 +6,12 @@
  */
 
 import { ClinicalFacts, MedicationFact, FollowUpFact } from '../types/careplan';
+import { sanitizeDocumentInput } from './security';
 
 export function extractClinicalFacts(rawText: string): ClinicalFacts {
-  const normalized = rawText.trim();
-  const lines = normalized.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
+  // Step 1: Security sanitization to neutralize prompt overrides or malicious scripts
+  const { sanitizedText } = sanitizeDocumentInput(rawText);
+  const normalized = sanitizedText.trim();
 
   // 1. Patient ID (only if explicitly present)
   let patientId: string | null = null;
@@ -67,7 +69,11 @@ export function extractClinicalFacts(rawText: string): ClinicalFacts {
     const content = warningSectionMatch[1].trim();
 
     // Check if the source explicitly states it does not invent/list warning signs
-    if (content.toLowerCase().includes('intentionally does not invent') || content.toLowerCase().includes('listed in your discharge instructions') || content.toLowerCase().includes('no specific') || content.toLowerCase().includes('not documented')) {
+    if (content.toLowerCase().includes('intentionally does not invent') || 
+        content.toLowerCase().includes('does not specify') ||
+        content.toLowerCase().includes('listed in your discharge instructions') || 
+        content.toLowerCase().includes('no specific') || 
+        content.toLowerCase().includes('not documented')) {
       explicitListGiven = false;
       warningActions.push('Return to hospital or contact surgical team if experiencing unlisted warning signs.');
     } else {
@@ -190,16 +196,17 @@ function parseMedicationLine(line: string, id: string): MedicationFact | null {
   let frequency: string | null = null;
   let timing: string | null = null;
   let duration: string | null = null;
+  let durationDays: number | null = null;
   const missingFields: string[] = [];
 
   // Match strength e.g., "500 mg", "650 mg", "40 mg", "625 mg", "250 mg"
-  const strengthMatch = cleanLine.match(/(\d+(?:\.\d+)?\s*(?:mg|g|mcg|ml|IU))/i);
+  const strengthMatch = cleanLine.match(/(\d+(?:\.\d+)?\s*(?:mg|g|mcg|ml|IU|units|puffs))/i);
   if (strengthMatch) {
     strength = strengthMatch[1].trim();
   }
 
   // Medication Name: Everything before strength or first comma/colon
-  const nameMatch = cleanLine.match(/^([A-Za-z0-9\s-]+?)(?:,|\s+\d+(?:\.\d+)?\s*(?:mg|g|mcg|ml)|:)/i);
+  const nameMatch = cleanLine.match(/^([A-Za-z0-9\s-]+?)(?:,|\s+\d+(?:\.\d+)?\s*(?:mg|g|mcg|ml|iu|units)|:)/i);
   if (nameMatch) {
     name = nameMatch[1].trim();
   } else {
@@ -211,22 +218,21 @@ function parseMedicationLine(line: string, id: string): MedicationFact | null {
   name = name.replace(/^\d+[\s.-]*/, '').replace(/^(tablet|capsule|tab|cap)\s+/i, '').trim();
 
   // Dose: e.g. "one tablet", "1 tablet", "2 puffs", "1 capsule"
-  const doseMatch = cleanLine.match(/(\b(?:one|two|three|\d+)\s+(?:tablet|tablets|tab|capsule|capsules|cap|puff|puffs|drop|drops)\b)/i);
+  const doseMatch = cleanLine.match(/(\b(?:one|two|three|\d+)\s+(?:tablet|tablets|tab|capsule|capsules|cap|puff|puffs|drop|drops|unit|units)\b)/i);
   if (doseMatch) {
     dose = doseMatch[1].trim();
   } else if (strength) {
-    // If only strength given and dose not separate, dose might be 1 tablet
     dose = strength;
   }
 
-  // Route: "by mouth", "oral", "orally", "topical", "subcutaneous", "IV"
-  const routeMatch = cleanLine.match(/(by mouth|orally|oral|sublingual|topical|intravenous|IV|subcutaneous)/i);
+  // Route: "by mouth", "oral", "orally", "topical", "subcutaneous", "IV", "inhaled"
+  const routeMatch = cleanLine.match(/(by mouth|orally|oral|sublingual|topical|intravenous|IV|subcutaneous|inhaled|via inhaler)/i);
   if (routeMatch) {
     route = routeMatch[1].toLowerCase() === 'oral' || routeMatch[1].toLowerCase() === 'orally' ? 'by mouth' : routeMatch[1];
   }
 
   // Frequency: "twice daily", "once daily", "every 6 hours", "every 8 hours", "three times daily"
-  const freqMatch = cleanLine.match(/(twice daily|once daily|three times daily|every \d+ hours(?: as needed for [a-z]+)?|as needed|at bedtime)/i);
+  const freqMatch = cleanLine.match(/(twice daily|once daily|three times daily|every \d+ hours(?: as needed for [a-z]+)?|as needed|at bedtime|in the morning)/i);
   if (freqMatch) {
     frequency = freqMatch[1].trim();
   }
@@ -241,6 +247,16 @@ function parseMedicationLine(line: string, id: string): MedicationFact | null {
   const durationMatch = cleanLine.match(/(?:for\s+)(\w+\s+(?:days|weeks|months|d)|(?:five|seven|ten|fourteen|thirty)\s+(?:days|weeks))/i);
   if (durationMatch) {
     duration = durationMatch[0].trim();
+    // Parse integer days
+    if (duration.includes('5') || duration.includes('five')) durationDays = 5;
+    else if (duration.includes('7') || duration.includes('seven')) durationDays = 7;
+    else if (duration.includes('10') || duration.includes('ten')) durationDays = 10;
+    else if (duration.includes('14') || duration.includes('fourteen') || duration.includes('2 weeks')) durationDays = 14;
+    else if (duration.includes('30') || duration.includes('thirty') || duration.includes('1 month')) durationDays = 30;
+    else {
+      const numMatch = duration.match(/\d+/);
+      if (numMatch) durationDays = parseInt(numMatch[0], 10);
+    }
   } else {
     // Check if missing
     if (cleanLine.toLowerCase().includes('duration not stated') || !cleanLine.toLowerCase().includes('for ')) {
@@ -266,6 +282,7 @@ function parseMedicationLine(line: string, id: string): MedicationFact | null {
     frequency,
     timing,
     duration,
+    durationDays,
     evidence: cleanLine,
     isMissingRequiredField: missingFields.length > 0,
     missingFields,
@@ -285,6 +302,7 @@ function parseFollowUpSection(text: string): FollowUpFact {
       exactDate: null,
       exactTime: null,
       relativeTimeline: null,
+      relativeDays: null,
       isRelativeOnly: true,
       missingDetails: ['Appointment date', 'Time', 'Department'],
       evidence: 'No follow-up section found in source document.',
@@ -297,7 +315,7 @@ function parseFollowUpSection(text: string): FollowUpFact {
 
   // Clinician or department
   let clinicianOrDept: string | null = null;
-  const deptMatch = rawSection.match(/(?:surgical outpatient department|general surgery outpatient department|cardiology & endocrine clinic|primary care clinic|outpatient department|cardiology OPD|Dr\.\s*[A-Za-z]+)/i);
+  const deptMatch = rawSection.match(/(?:surgical outpatient department|general surgery outpatient department|cardiology & endocrine clinic|cardiology OPD|primary care clinic|pulmonology clinic|respiratory OPD|obstetrics & gynecology clinic|postnatal clinic|outpatient department|Dr\.\s*[A-Za-z]+)/i);
   if (deptMatch) {
     clinicianOrDept = deptMatch[0].trim();
   } else {
@@ -320,9 +338,13 @@ function parseFollowUpSection(text: string): FollowUpFact {
 
   // Relative timeline
   let relativeTimeline: string | null = null;
+  let relativeDays: number | null = null;
   const relMatch = rawSection.match(/(?:in\s+)?(seven days|7 days|10 days|14 days|two weeks|one week|within 10 days)/i);
   if (relMatch) {
     relativeTimeline = relMatch[0].trim();
+    if (relativeTimeline.includes('7') || relativeTimeline.includes('seven') || relativeTimeline.includes('one week')) relativeDays = 7;
+    else if (relativeTimeline.includes('10')) relativeDays = 10;
+    else if (relativeTimeline.includes('14') || relativeTimeline.includes('two weeks')) relativeDays = 14;
   }
 
   // Check if source explicitly says date/time not supplied
@@ -345,6 +367,7 @@ function parseFollowUpSection(text: string): FollowUpFact {
     exactDate,
     exactTime,
     relativeTimeline,
+    relativeDays,
     isRelativeOnly,
     missingDetails,
     evidence,

@@ -1,5 +1,17 @@
 import React, { useState, useRef } from 'react';
-import { FileUp, Sparkles, AlertCircle, FileText, CheckCircle2, ChevronRight, Languages, RefreshCw, HelpCircle, ShieldAlert } from 'lucide-react';
+import { 
+  FileUp, 
+  Sparkles, 
+  AlertCircle, 
+  FileText, 
+  CheckCircle2, 
+  ChevronRight, 
+  Languages, 
+  RefreshCw, 
+  ShieldAlert,
+  FolderOpen,
+  Filter
+} from 'lucide-react';
 import { SAMPLE_CASES, SampleCase } from '../data/sampleSummaries';
 import { LanguageCode } from '../types/careplan';
 
@@ -18,7 +30,9 @@ export const InputSection: React.FC<InputSectionProps> = ({
 }) => {
   const [inputText, setInputText] = useState<string>(SAMPLE_CASES[0].sourceText);
   const [selectedSampleId, setSelectedSampleId] = useState<string>(SAMPLE_CASES[0].id);
+  const [categoryFilter, setCategoryFilter] = useState<string>('ALL');
   const [fileError, setFileError] = useState<string | null>(null);
+  const [isExtractingPdf, setIsExtractingPdf] = useState<boolean>(false);
   const [activeTab, setActiveTab] = useState<'sample' | 'paste' | 'upload'>('sample');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -28,52 +42,86 @@ export const InputSection: React.FC<InputSectionProps> = ({
     setFileError(null);
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     setFileError(null);
 
-    // Validate size (max 5MB)
-    if (file.size > 5 * 1024 * 1024) {
-      setFileError('File size exceeds the 5MB limit. Please provide a standard summary.');
+    // Validate size (max 10MB)
+    if (file.size > 10 * 1024 * 1024) {
+      setFileError('File size exceeds the 10MB limit. Please provide a standard summary.');
       return;
     }
 
-    // Accept .txt, .md, .pdf
     const fileName = file.name.toLowerCase();
     if (!fileName.endsWith('.txt') && !fileName.endsWith('.md') && !fileName.endsWith('.pdf')) {
       setFileError('Please upload a .txt, .md, or .pdf text document.');
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const content = event.target?.result;
-      if (typeof content === 'string') {
-        // If it's a PDF text representation or plain text
-        if (fileName.endsWith('.pdf')) {
-          // Extract printable ASCII strings if binary PDF
-          const cleanText = content.replace(/[^\x20-\x7E\r\n\t]/g, ' ').replace(/\s{3,}/g, '\n').trim();
-          if (cleanText.length > 50) {
-            setInputText(cleanText);
-            setActiveTab('paste');
-          } else {
-            setFileError('Could not extract readable text from PDF. You can copy and paste the summary text directly below.');
+    if (fileName.endsWith('.pdf')) {
+      setIsExtractingPdf(true);
+      try {
+        // Read file as ArrayBuffer or Base64
+        const reader = new FileReader();
+        reader.onload = async () => {
+          try {
+            const base64Data = (reader.result as string).split(',')[1];
+            
+            // Attempt server-side extraction
+            const res = await fetch('/api/extract-pdf', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ base64: base64Data, filename: file.name }),
+            });
+
+            if (res.ok) {
+              const data = await res.json();
+              if (data.text && data.text.trim().length > 20) {
+                setInputText(data.text);
+                setActiveTab('paste');
+                setIsExtractingPdf(false);
+                return;
+              }
+            }
+          } catch {
+            // Fall back to client-side text stream parser
           }
-        } else {
+
+          // Fallback parser
+          const binaryReader = new FileReader();
+          binaryReader.onload = () => {
+            const raw = binaryReader.result as string;
+            const extracted = raw.replace(/[^\x20-\x7E\r\n\t]/g, ' ').replace(/\s{3,}/g, '\n').trim();
+            if (extracted.length > 50) {
+              setInputText(extracted);
+              setActiveTab('paste');
+            } else {
+              setFileError('Scanned or image-only PDF detected. Please paste text directly.');
+            }
+            setIsExtractingPdf(false);
+          };
+          binaryReader.readAsBinaryString(file);
+        };
+        reader.readAsDataURL(file);
+      } catch (err) {
+        setIsExtractingPdf(false);
+        setFileError('PDF parsing failed. Please copy & paste text directly.');
+      }
+    } else {
+      // Plain text or markdown
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const content = event.target?.result;
+        if (typeof content === 'string') {
           setInputText(content);
           setActiveTab('paste');
         }
-      }
-    };
-    reader.onerror = () => {
-      setFileError('Failed to read the file. Please paste the summary text.');
-    };
-
-    if (fileName.endsWith('.pdf')) {
-      reader.readAsBinaryString(file);
-    } else {
+      };
+      reader.onerror = () => {
+        setFileError('Failed to read the file. Please paste the summary text.');
+      };
       reader.readAsText(file);
     }
   };
@@ -89,13 +137,23 @@ export const InputSection: React.FC<InputSectionProps> = ({
     onProcess(inputText, selectedLanguage, sourceType);
   };
 
+  const filteredSamples = SAMPLE_CASES.filter(s => {
+    if (categoryFilter === 'ALL') return true;
+    if (categoryFilter === 'SURGERY') return s.category === 'POST_OP';
+    if (categoryFilter === 'CHRONIC') return s.category === 'CARDIAC' || s.category === 'DIABETES' || s.category === 'RESPIRATORY';
+    if (categoryFilter === 'MATERNITY') return s.category === 'MATERNITY';
+    if (categoryFilter === 'BENCHMARK') return s.category === 'BENCHMARK';
+    if (categoryFilter === 'SAFETY') return s.category === 'ADVERSARIAL';
+    return true;
+  });
+
   return (
     <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm overflow-hidden mb-8 no-print">
       {/* Workflow Guidance Banner */}
       <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-teal-950 text-white p-6 sm:p-7">
         <div className="max-w-4xl">
           <div className="inline-flex items-center space-x-2 px-2.5 py-1 rounded-md bg-teal-500/20 text-teal-300 text-xs font-semibold mb-3 border border-teal-500/30">
-            <span>Healthcare Track H2 Prototype</span>
+            <span>Healthcare Track H2 • Talent AP Mega Hackathon 2026</span>
             <span>•</span>
             <span>Zero Clinical Drift Guarantee</span>
           </div>
@@ -104,7 +162,7 @@ export const InputSection: React.FC<InputSectionProps> = ({
           </h1>
           <p className="text-slate-300 text-sm sm:text-base leading-relaxed">
             Convert complex hospital discharge summaries into simple, Class 8 readability instructions in English and Telugu. 
-            Every instruction is audited by our <strong className="text-teal-300 font-semibold">Deterministic Faithfulness Engine</strong> to ensure no medications, dosages, or safety warnings are altered, omitted, or hallucinated.
+            Audited by our <strong className="text-teal-300 font-semibold">Deterministic Faithfulness Engine</strong> to ensure no medications, dosages, or safety warnings are altered, omitted, or hallucinated.
           </p>
         </div>
 
@@ -128,22 +186,22 @@ export const InputSection: React.FC<InputSectionProps> = ({
       <div className="p-6 sm:p-8">
         {/* Input Methods Tabs */}
         <div className="flex flex-wrap items-center justify-between gap-4 mb-5 border-b border-slate-200 pb-4">
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-2 overflow-x-auto">
             <button
               type="button"
               onClick={() => setActiveTab('sample')}
-              className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition ${
+              className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition whitespace-nowrap ${
                 activeTab === 'sample'
                   ? 'bg-teal-50 text-teal-700 border border-teal-300'
                   : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
               }`}
             >
-              Synthetic Demo Cases (Recommended)
+              Synthetic Demo Library ({SAMPLE_CASES.length} Cases)
             </button>
             <button
               type="button"
               onClick={() => setActiveTab('paste')}
-              className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition ${
+              className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition whitespace-nowrap ${
                 activeTab === 'paste'
                   ? 'bg-teal-50 text-teal-700 border border-teal-300'
                   : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
@@ -154,7 +212,7 @@ export const InputSection: React.FC<InputSectionProps> = ({
             <button
               type="button"
               onClick={() => setActiveTab('upload')}
-              className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition ${
+              className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition whitespace-nowrap ${
                 activeTab === 'upload'
                   ? 'bg-teal-50 text-teal-700 border border-teal-300'
                   : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
@@ -193,25 +251,46 @@ export const InputSection: React.FC<InputSectionProps> = ({
           </div>
         </div>
 
-        {/* Tab 1: Synthetic Benchmark Cards */}
+        {/* Tab 1: Synthetic Benchmark Cards with Category Filter */}
         {activeTab === 'sample' && (
           <div className="mb-5">
-            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2.5">
-              Select A Synthetic Case To Test Clinical Integrity:
-            </label>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {SAMPLE_CASES.map((sample) => (
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-2.5">
+              <label className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                Select A Synthetic Clinical Scenario:
+              </label>
+
+              {/* Category Pills */}
+              <div className="flex items-center space-x-1 text-[11px] font-semibold">
+                {['ALL', 'BENCHMARK', 'SURGERY', 'CHRONIC', 'MATERNITY', 'SAFETY'].map((cat) => (
+                  <button
+                    key={cat}
+                    type="button"
+                    onClick={() => setCategoryFilter(cat)}
+                    className={`px-2 py-0.5 rounded-md transition ${
+                      categoryFilter === cat
+                        ? 'bg-slate-800 text-white font-bold'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
+                  >
+                    {cat}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {filteredSamples.map((sample) => (
                 <div
                   key={sample.id}
                   onClick={() => handleSelectSample(sample)}
-                  className={`p-3.5 rounded-xl border text-left cursor-pointer transition relative ${
+                  className={`p-3.5 rounded-xl border text-left cursor-pointer transition relative flex flex-col justify-between ${
                     selectedSampleId === sample.id
                       ? 'border-teal-500 bg-teal-50/40 ring-1 ring-teal-500 shadow-xs'
                       : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/60'
                   }`}
                 >
-                  <div className="flex items-start justify-between">
-                    <div>
+                  <div>
+                    <div className="flex items-start justify-between">
                       <span className={`inline-block text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md mb-1.5 ${
                         sample.isAdversarial 
                           ? 'bg-rose-100 text-rose-800 border border-rose-300' 
@@ -219,14 +298,14 @@ export const InputSection: React.FC<InputSectionProps> = ({
                       }`}>
                         {sample.badge}
                       </span>
-                      <h4 className="text-sm font-bold text-slate-900">{sample.title}</h4>
-                      <p className="text-xs text-slate-600 font-medium mt-0.5">{sample.subtitle}</p>
+                      {selectedSampleId === sample.id && (
+                        <CheckCircle2 className="w-5 h-5 text-teal-600 shrink-0 mt-0.5" />
+                      )}
                     </div>
-                    {selectedSampleId === sample.id && (
-                      <CheckCircle2 className="w-5 h-5 text-teal-600 shrink-0 mt-0.5" />
-                    )}
+                    <h4 className="text-xs font-bold text-slate-900">{sample.title}</h4>
+                    <p className="text-[11px] text-slate-600 font-medium mt-0.5">{sample.subtitle}</p>
                   </div>
-                  <p className="text-xs text-slate-500 mt-2 line-clamp-2">
+                  <p className="text-[11px] text-slate-500 mt-2 line-clamp-2">
                     {sample.description}
                   </p>
                 </div>
@@ -250,13 +329,17 @@ export const InputSection: React.FC<InputSectionProps> = ({
                 onChange={handleFileUpload}
               />
               <div className="w-12 h-12 mx-auto rounded-full bg-slate-100 group-hover:bg-teal-100 flex items-center justify-center text-slate-600 group-hover:text-teal-700 mb-3 transition">
-                <FileUp className="w-6 h-6" />
+                {isExtractingPdf ? (
+                  <RefreshCw className="w-6 h-6 animate-spin text-teal-600" />
+                ) : (
+                  <FileUp className="w-6 h-6" />
+                )}
               </div>
               <p className="text-sm font-semibold text-slate-900">
-                Click to upload or drag & drop discharge summary
+                {isExtractingPdf ? 'Extracting clean text from PDF...' : 'Click to upload or drag & drop discharge summary'}
               </p>
               <p className="text-xs text-slate-500 mt-1">
-                Supports TXT, MD, and text-based PDF (Max 5MB) • Synthetic patient data only
+                Supports TXT, MD, and PDF documents (Max 10MB) • Synthetic patient data only
               </p>
             </div>
           </div>

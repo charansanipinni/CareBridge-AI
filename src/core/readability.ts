@@ -1,6 +1,7 @@
 /**
  * Readability analysis for patient care instructions.
- * Evaluates text against the target ~Class 8 reading grade (Flesch-Kincaid ~7.0 - 8.5).
+ * Evaluates text against the target ~Class 8 reading grade.
+ * Uses Flesch-Kincaid for English, and an Indic Prose Clarity Index for Telugu.
  */
 
 export interface ReadabilityMetrics {
@@ -12,6 +13,7 @@ export interface ReadabilityMetrics {
   wordCount: number;
   sentenceCount: number;
   averageWordsPerSentence: number;
+  metricType: 'Flesch-Kincaid (English)' | 'Indic Prose Clarity Index (Telugu)';
 }
 
 /**
@@ -29,9 +31,9 @@ function countSyllables(word: string): number {
 }
 
 /**
- * Calculates Flesch-Kincaid Grade Level and Reading Ease
+ * Calculates language-appropriate readability score
  */
-export function calculateReadability(text: string): ReadabilityMetrics {
+export function calculateReadability(text: string, language: 'en' | 'te' = 'en'): ReadabilityMetrics {
   if (!text || text.trim().length === 0) {
     return {
       fleschKincaidGradeLevel: 8.0,
@@ -42,12 +44,13 @@ export function calculateReadability(text: string): ReadabilityMetrics {
       wordCount: 0,
       sentenceCount: 0,
       averageWordsPerSentence: 0,
+      metricType: language === 'te' ? 'Indic Prose Clarity Index (Telugu)' : 'Flesch-Kincaid (English)',
     };
   }
 
-  // Split into sentences using punctuation (. ! ?)
+  // Split into sentences using punctuation (. ! ? and Telugu full stop / newline)
   const sentences = text
-    .split(/[.!?]+\s+/)
+    .split(/[.!?।\r\n]+\s*/)
     .map(s => s.trim())
     .filter(s => s.length > 0);
   const sentenceCount = Math.max(1, sentences.length);
@@ -55,27 +58,51 @@ export function calculateReadability(text: string): ReadabilityMetrics {
   // Split into words
   const words = text
     .split(/\s+/)
-    .map(w => w.replace(/[^\w-]/g, ''))
+    .map(w => w.replace(/[^\w\u0C00-\u0C7F-]/g, ''))
     .filter(w => w.length > 0);
   const wordCount = Math.max(1, words.length);
+  const wordsPerSentence = wordCount / sentenceCount;
 
+  if (language === 'te') {
+    // Specific Telugu Prose Clarity Index based on average sentence length and compound word length
+    // Telugu is an agglutinative Dravidian language; short sentences (5-9 words) are key to Class 8 readability.
+    const averageCharsPerWord = words.reduce((acc, w) => acc + w.length, 0) / wordCount;
+    // Ideal range for Telugu patient instructions: 5-10 words/sentence, 4-7 characters/word
+    const indicGrade = Math.max(5, Math.min(12, parseFloat((0.5 * wordsPerSentence + 0.4 * averageCharsPerWord).toFixed(1))));
+    const isWithinTarget = indicGrade <= 8.5;
+
+    let notes = '';
+    if (wordsPerSentence <= 8) {
+      notes = 'స్పష్టమైన సరళ వచన శైలి: వాక్యాలు చిన్నవిగా మరియు రోగులకు సులభంగా అర్థమయ్యేలా ఉన్నాయి.';
+    } else {
+      notes = 'వాక్యాలు సాధారణ సంభాషణ శైలిలో ఉన్నాయి.';
+    }
+
+    return {
+      fleschKincaidGradeLevel: indicGrade,
+      readingEaseScore: Math.round(100 - (indicGrade * 6)),
+      targetGrade: '~Class 8 Telugu Target',
+      isWithinTarget,
+      notes,
+      wordCount,
+      sentenceCount,
+      averageWordsPerSentence: parseFloat(wordsPerSentence.toFixed(1)),
+      metricType: 'Indic Prose Clarity Index (Telugu)',
+    };
+  }
+
+  // English Flesch-Kincaid formula
   let totalSyllables = 0;
   for (const word of words) {
     totalSyllables += countSyllables(word);
   }
 
-  const wordsPerSentence = wordCount / sentenceCount;
   const syllablesPerWord = totalSyllables / wordCount;
-
-  // Standard Flesch-Kincaid formula
   const rawGrade = 0.39 * wordsPerSentence + 11.8 * syllablesPerWord - 15.59;
   const gradeLevel = Math.max(1, Math.min(16, parseFloat(rawGrade.toFixed(1))));
-
-  // Flesch Reading Ease (0-100, higher is easier)
   const rawEase = 206.835 - 1.015 * wordsPerSentence - 84.6 * syllablesPerWord;
   const readingEase = Math.max(0, Math.min(100, parseFloat(rawEase.toFixed(1))));
 
-  // Target is Class 8 (~ Grade 6.5 to 8.5)
   const isWithinTarget = gradeLevel <= 8.5;
 
   let notes = '';
@@ -96,5 +123,6 @@ export function calculateReadability(text: string): ReadabilityMetrics {
     wordCount,
     sentenceCount,
     averageWordsPerSentence: parseFloat(wordsPerSentence.toFixed(1)),
+    metricType: 'Flesch-Kincaid (English)',
   };
 }
