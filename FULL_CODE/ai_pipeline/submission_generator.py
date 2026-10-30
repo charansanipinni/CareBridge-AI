@@ -1,6 +1,7 @@
 """Submission Generator: Orchestrates clinical extraction, English & Telugu care plans, and validation."""
 
 import json
+import re
 from pathlib import Path
 from typing import Optional
 import pandas as pd
@@ -21,45 +22,129 @@ class SubmissionGenerator:
     def generate_single_plan(self, summary_id: str, summary_text: str) -> dict:
         cp = self.parser.parse(summary_text)
 
-        # English Plan
-        en_out = ["MY CARE PLAN - Chandrapuri District Hospital"]
-        en_out.append("This document outlines your discharge instructions to help you recover comfortably at home.\n")
-        en_out.append("YOUR MEDICINES (take exactly as written)")
-        for i, m in enumerate(cp.get("medicines", []), 1):
-            en_out.append(f"{i}. {m['name']} {m['dose']}")
-            en_out.append(f"   - {m['how_to_take_plain']}")
+        # English Plan - Simplified patient instructions in Class 8 language
+        en_out = ["YOUR DISCHARGE CARE PLAN"]
+        en_out.append("Please follow these personalized discharge instructions carefully to recover safely at home.\n")
+        
+        # 1. Prescribed Medicines
+        meds = cp.get("medicines", [])
+        if meds:
+            en_out.append("YOUR PRESCRIBED MEDICINES (take exactly as written):")
+            for i, m in enumerate(meds, 1):
+                en_out.append(f"{i}. {m['name']} {m['dose']}")
+                en_out.append(f"   - {m['how_to_take_plain']}")
 
-        if cp.get("stop_medicines"):
-            en_out.append("\nMEDICINES TO STOP")
-            for s in cp["stop_medicines"]:
+        # 2. Stopped Medicines - ONLY if present
+        stop_meds = cp.get("stop_medicines", [])
+        if stop_meds:
+            en_out.append("\nMEDICINES TO STOP:")
+            for s in stop_meds:
                 en_out.append(f"- STOP {s}. Please discontinue this medicine immediately.")
 
-        en_out.append("\nEMERGENCY WARNING SIGNS - SEEK IMMEDIATE HOSPITAL CARE")
-        en_out.append("Return to the hospital emergency department right away if you notice any of these danger signs:")
-        en_out.append("- Severe or sudden headache, blurred vision, or intense dizziness")
-        en_out.append("- High fever, chills, persistent sweating, or uncontrollable shivering")
-        en_out.append("- Trouble breathing, chest tightness, or rapid breathing")
-        en_out.append("- Increasing pain, swelling, warmth, or drainage around the surgical area")
-        en_out.append("- Severe nausea, inability to keep liquids down, or severe abdominal swelling")
-        en_out.append("- Any unusual bleeding, weakness, or seizure activity")
+        # 3. Emergency Red Flags - Paraphrased only from source-backed symptoms
+        warns = cp.get("warning_signs", [])
+        if warns:
+            en_out.append("\nEMERGENCY WARNING SIGNS - SEEK IMMEDIATE HOSPITAL CARE:")
+            warn_items = []
+            warn_blob = " ".join(warns).lower()
+            if any(k in warn_blob for k in ["chest pain", "angina", "tightness"]):
+                warn_items.append("Sudden chest discomfort, pressure, or tightness")
+            if any(k in warn_blob for k in ["shortness of breath", "breathless", "dyspnea"]):
+                warn_items.append("Difficulty breathing or sudden shortness of breath")
+            if any(k in warn_blob for k in ["fever", "chills", "temperature"]):
+                warn_items.append("High body temperature, chills, or uncontrollable shivering")
+            if any(k in warn_blob for k in ["bleeding", "blood in", "gums", "hematuria"]):
+                warn_items.append("Unexpected bleeding from gums, urine, or stools")
+            if any(k in warn_blob for k in ["redness", "pus", "drainage", "wound"]):
+                warn_items.append("Incision redness, unusual swelling, or oozing fluid")
+            if any(k in warn_blob for k in ["headache", "blurred vision", "vision"]):
+                warn_items.append("Intense headache or sudden changes in your vision")
+            if any(k in warn_blob for k in ["pain in calf", "swelling of the leg", "dvt", "swelling"]):
+                warn_items.append("Calf tenderness or swelling in the legs")
+            if any(k in warn_blob for k in ["dizziness", "fainting", "syncope"]):
+                warn_items.append("Severe dizziness, blackouts, or loss of balance")
+            if any(k in warn_blob for k in ["vomit", "nausea"]):
+                warn_items.append("Persistent vomiting and inability to keep fluids down")
+            if not warn_items:
+                warn_items.append("Any severe sudden pain or worsening of your current condition")
+            for item in warn_items:
+                en_out.append(f"- {item}")
 
-        en_out.append("\nNUTRITION AND MEAL GUIDELINES")
-        en_out.append("- Eat freshly cooked, well-balanced meals with plenty of fresh vegetables and proteins.")
-        en_out.append("- Avoid overly salty, spicy, fried or packaged snacks.")
-        en_out.append("- Keep yourself well hydrated with boiled or filtered water throughout the day.")
+        # 4. Nutrition - Paraphrased only from source-backed instructions
+        diet = cp.get("diet", [])
+        if diet:
+            en_out.append("\nNUTRITION AND MEAL GUIDELINES:")
+            diet_items = []
+            diet_blob = " ".join(diet).lower()
+            if any(k in diet_blob for k in ["salt", "sodium"]):
+                diet_items.append("Eat food prepared with minimal salt")
+            if any(k in diet_blob for k in ["oily", "fried", "fat"]):
+                diet_items.append("Stay away from heavy, spicy, or fried meals")
+            if any(k in diet_blob for k in ["diabetic", "sugar", "sweets"]):
+                diet_items.append("Avoid sugary food items and adhere to diabetic meal plans")
+            if any(k in diet_blob for k in ["protein", "dal", "eggs", "milk", "paneer"]):
+                diet_items.append("Incorporate wholesome proteins such as lentils, eggs, and dairy")
+            if any(k in diet_blob for k in ["soft", "semisolid"]):
+                diet_items.append("Choose soft, freshly prepared, gentle foods")
+            if any(k in diet_blob for k in ["fluid", "water", "hydration"]):
+                diet_items.append("Drink adequate amounts of clean, boiled water")
+            if not diet_items:
+                diet_items.append("Follow healthy home-cooked meals as directed")
+            for item in diet_items:
+                en_out.append(f"- {item}")
 
-        en_out.append("\nDAILY ACTIVITY AND REST")
-        en_out.append("- Ensure you get adequate restful sleep each night and do not overexert yourself.")
-        en_out.append("- Avoid heavy lifting, intense workouts, or strenuous physical work until cleared by your physician.")
-        en_out.append("- Gentle walking around the home is encouraged to maintain good blood circulation.")
+        # 5. Activity and Rest - Paraphrased only from source-backed instructions
+        act = cp.get("activity", [])
+        if act:
+            en_out.append("\nDAILY ACTIVITY AND REST:")
+            act_items = []
+            act_blob = " ".join(act).lower()
+            if any(k in act_blob for k in ["heavy", "lifting"]):
+                act_items.append("Refrain from carrying or lifting heavy objects")
+            if any(k in act_blob for k in ["rest", "bed rest"]):
+                act_items.append("Ensure adequate restful sleep and avoid exhaustion")
+            if any(k in act_blob for k in ["walk", "walking", "walker"]):
+                act_items.append("Take gentle, short walks indoors as your comfort allows")
+            if any(k in act_blob for k in ["drive", "driving"]):
+                act_items.append("Do not operate vehicles until your doctor approves")
+            if any(k in act_blob for k in ["exercise", "bending", "physio"]):
+                act_items.append("Perform gentle recovery exercises as guided by your care team")
+            if any(k in act_blob for k in ["squat", "cross-legged", "toilet"]):
+                act_items.append("Use a western-style toilet and avoid squatting postures")
+            if not act_items:
+                act_items.append("Keep physical activity light and rest when fatigued")
+            for item in act_items:
+                en_out.append(f"- {item}")
 
-        if cp.get("follow_ups"):
-            en_out.append("\nYOUR NEXT HOSPITAL VISITS")
-            for f in cp["follow_ups"]:
-                en_out.append(f"- {f['date']}: Attend your scheduled review at the {f['with_whom']}. Please bring all prior records and test reports.")
+        # 6. Wound Care - Paraphrased only from source-backed instructions
+        wound = cp.get("wound_care", [])
+        if wound:
+            en_out.append("\nWOUND CARE GUIDELINES:")
+            wound_items = []
+            wound_blob = " ".join(wound).lower()
+            if any(k in wound_blob for k in ["clean", "dry"]):
+                wound_items.append("Ensure the surgical dressing stays clean and completely dry")
+            if any(k in wound_blob for k in ["sponge", "soak", "immersion"]):
+                wound_items.append("Take sponge baths and do not submerge the wound in water")
+            if any(k in wound_blob for k in ["dressing", "remove"]):
+                wound_items.append("Leave the dressing in place until your scheduled clinic review")
+            if any(k in wound_blob for k in ["ice", "pack"]):
+                wound_items.append("Apply a cool ice pack over the joint for short periods as guided")
+            if not wound_items:
+                wound_items.append("Handle the healing site with clean hands and protect it from dirt")
+            for item in wound_items:
+                en_out.append(f"- {item}")
 
-        en_out.append("\nIn case of any urgent medical emergency, report immediately to Casualty at Chandrapuri District Hospital (open 24 hours).")
-        en_out.append("If any instruction is unclear, speak to your healthcare team before changing your medicines.")
+        # 7. Follow-up Appointments - ONLY if present in source
+        follow_ups = cp.get("follow_ups", [])
+        if follow_ups:
+            en_out.append("\nYOUR NEXT HOSPITAL VISITS:")
+            for f in follow_ups:
+                with_whom = f.get('with_whom') or 'Hospital Clinic'
+                en_out.append(f"- {f['date']}: Attend your scheduled review at {with_whom}. Please bring your prior records.")
+
+        en_out.append("\nIf any instruction is unclear or if you feel unwell, contact your doctor or hospital team promptly.")
+        en_out.append("Do not stop or alter your medications without clinical advice.")
 
         plain_text_en = "\n".join(en_out)
         telugu_text = self.translator.generate_telugu(cp)

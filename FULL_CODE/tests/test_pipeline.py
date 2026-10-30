@@ -151,3 +151,115 @@ def test_faithfulness_validator():
     is_valid_inv, _, flags_inv = validator.validate(invalid_cp)
     assert is_valid_inv is False
     assert len(flags_inv) >= 2
+
+
+# 9. Extended Faithfulness & 15-Check Validator Tests
+def test_telugu_no_hallucinations_when_empty():
+    translator = TranslationService()
+    cp = {
+        "medicines": [{"name": "Aspirin", "dose": "75 mg", "frequency": "OD", "timing": "after food"}],
+        "stop_medicines": [],
+        "warning_signs": [],
+        "diet": [],
+        "activity": [],
+        "wound_care": [],
+        "follow_ups": [],
+    }
+    te_text = translator.generate_telugu(cp)
+    # Must NOT hallucinate hospital name or warning signs or diet
+    assert "చంద్రపురి" not in te_text
+    assert "క్యాజువాలిటీ" not in te_text
+    assert "ప్రమాదకర లక్షణాలు" not in te_text
+    assert "ఆహార నియమాలు" not in te_text
+    assert "శారీరక శ్రమ" not in te_text
+    assert "Aspirin 75 mg" in te_text
+
+def test_15_checks_comprehensive_safety():
+    validator = FaithfulnessValidator()
+    source = """
+    DISCHARGE SUMMARY
+    DIAGNOSIS: Essential Hypertension
+    DISCHARGE MEDICATIONS:
+    1. Tab. Telmisartan 40 mg OD after breakfast
+    2. Tab. Amlodipine 5 mg OD at bedtime
+    Stop Tab. Atenolol 50 mg OD
+    FOLLOW UP:
+    Review in Cardiology OPD on 2026-08-15
+    """
+    
+    # 1. Perfectly Faithful Plan
+    faithful_cp = {
+        "medicines": [
+            {"name": "Telmisartan", "dose": "40 mg", "frequency": "OD", "timing": "after breakfast"},
+            {"name": "Amlodipine", "dose": "5 mg", "frequency": "OD", "timing": "at bedtime"},
+        ],
+        "stop_medicines": ["Atenolol 50 mg"],
+        "warning_signs": [],
+        "diet": [],
+        "activity": [],
+        "follow_ups": [{"date": "2026-08-15", "with_whom": "Cardiology OPD"}],
+    }
+    te_trans = "మీ డిశ్చార్జ్ సంరక్షణ ప్రణాళిక 1. Telmisartan 40 mg 2. Amlodipine 5 mg - 2026-08-15 మరియు తీసుకోండి"
+    report = validator.validate_detailed(faithful_cp, source, te_trans)
+    assert report["is_valid"] is True
+    assert report["status"] == "VERIFIED"
+    assert report["checks"]["missing_medicines"]["status"] == "PASS"
+    assert report["checks"]["extra_medicines"]["status"] == "PASS"
+    assert report["checks"]["duplicate_medicines"]["status"] == "PASS"
+    assert report["checks"]["altered_dose"]["status"] == "PASS"
+    assert report["checks"]["altered_frequency"]["status"] == "PASS"
+    assert report["checks"]["wrong_stop_classification"]["status"] == "PASS"
+    assert report["checks"]["missing_followup_dates"]["status"] == "PASS"
+    assert report["checks"]["invented_followup_dates"]["status"] == "PASS"
+    assert report["checks"]["telugu_numeric_corruption"]["status"] == "PASS"
+
+    # 2. Altered Dose Check
+    bad_dose_cp = {
+        "medicines": [
+            {"name": "Telmisartan", "dose": "80 mg", "frequency": "OD", "timing": "after breakfast"},
+        ],
+        "stop_medicines": [],
+        "follow_ups": [],
+    }
+    report_dose = validator.validate_detailed(bad_dose_cp, source)
+    assert report_dose["checks"]["altered_dose"]["status"] == "FAIL"
+
+    # 3. Extra/Invented Med Check
+    hallucinated_cp = {
+        "medicines": [
+            {"name": "Telmisartan", "dose": "40 mg", "frequency": "OD"},
+            {"name": "Atorvastatin", "dose": "20 mg", "frequency": "OD"},
+        ],
+        "stop_medicines": [],
+        "follow_ups": [],
+    }
+    report_hallucinated = validator.validate_detailed(hallucinated_cp, source)
+    assert report_hallucinated["checks"]["extra_medicines"]["status"] == "FAIL"
+
+    # 4. Duplicate Med Check
+    dup_cp = {
+        "medicines": [
+            {"name": "Telmisartan", "dose": "40 mg", "frequency": "OD"},
+            {"name": "Telmisartan", "dose": "40 mg", "frequency": "OD"},
+        ],
+        "stop_medicines": [],
+        "follow_ups": [],
+    }
+    report_dup = validator.validate_detailed(dup_cp, source)
+    assert report_dup["checks"]["duplicate_medicines"]["status"] == "FAIL"
+
+    # 5. Invented Date Check
+    bad_date_cp = {
+        "medicines": [
+            {"name": "Telmisartan", "dose": "40 mg", "frequency": "OD"},
+        ],
+        "stop_medicines": [],
+        "follow_ups": [{"date": "2026-12-25", "with_whom": "Cardiology"}],
+    }
+    report_date = validator.validate_detailed(bad_date_cp, source)
+    assert report_date["checks"]["invented_followup_dates"]["status"] == "FAIL"
+
+    # 6. Telugu Numeric Corruption Check
+    corrupted_te = "మీ డిశ్చార్జ్ సంరక్షణ ప్రణాళిక 1. Telmisartan (dose missing) 2026-08-15"
+    report_te = validator.validate_detailed(faithful_cp, source, corrupted_te)
+    assert report_te["checks"]["telugu_numeric_corruption"]["status"] == "FAIL"

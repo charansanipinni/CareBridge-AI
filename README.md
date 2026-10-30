@@ -15,7 +15,7 @@ When patients leave the hospital, they receive dense, technical discharge summar
 - **Medication Instructions**: Plain explanations of what each medicine is, how much to take, when (with food icons), how long, and what it does.
 - **Red-Flag Warning Signs**: Clear, urgent indicators signaling when to return to the emergency department immediately.
 - **Appointments & Diet**: Chronological follow-up appointments with departments and specific test reports to bring.
-- **Faithfulness Engine**: A deterministic 12-point clinical safety engine ensuring zero dropped medicines, zero altered doses, and zero fabricated instructions.
+- **Faithfulness Engine**: A deterministic 15-point clinical safety engine ensuring zero dropped medicines, zero altered doses, zero fabricated instructions, and complete numerical preservation in Telugu.
 - **One-Page Printable Fridge Sheet**: High-contrast, clean layout designed to hang on a patient's refrigerator.
 - **Dual Perspective**: Interactive Patient View and side-by-side Clinician Audit View for healthcare professionals.
 
@@ -47,17 +47,17 @@ cp .env.example .env
 
 ## How to run the tests
 
-Execute all automated unit and safety integration tests across both TypeScript and Python pipelines:
+Execute all automated unit and safety integration tests across both TypeScript and Python pipelines (51 automated tests total):
 
 ```bash
-# 1. Run Python AI Pipeline Safety Tests (13/13 passing)
+# 1. Run Python AI Pipeline Safety Tests (15/15 passing)
 python -m pytest FULL_CODE/tests/test_pipeline.py
 
-# 2. Run TypeScript UI & Clinical Faithfulness Tests (18/18 passing)
+# 2. Run TypeScript UI & Clinical Faithfulness Tests (36/36 passing)
 npm test
 ```
 
-**Single Command to run all 31 tests:**
+**Single Command to run all 51 tests:**
 ```bash
 npm test && python -m pytest FULL_CODE/tests/test_pipeline.py
 ```

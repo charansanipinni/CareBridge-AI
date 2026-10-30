@@ -21,7 +21,7 @@ def main():
     parser = argparse.ArgumentParser(description="Package official Hackathon submission zip")
     parser.add_argument("--team_id", required=True, help="Official Team ID issued by organizers (e.g. T042 or AVENGERS)")
     parser.add_argument("--repo_path", default=".", help="Path to current repository root")
-    parser.add_argument("--output_dir", default="..", help="Directory where zip will be generated")
+    parser.add_argument("--output_dir", default="dist", help="Directory where zip will be generated")
     args = parser.parse_args()
 
     team_id = args.team_id.strip()
