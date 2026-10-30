@@ -65,15 +65,14 @@ class SubmissionGenerator:
                 warn_items.append("Severe dizziness, blackouts, or loss of balance")
             if any(k in warn_blob for k in ["vomit", "nausea"]):
                 warn_items.append("Persistent vomiting and inability to keep fluids down")
-            if not warn_items:
-                warn_items.append("Any severe sudden pain or worsening of your current condition")
-            for item in warn_items:
-                en_out.append(f"- {item}")
+            if warn_items:
+                en_out.append("\nEMERGENCY WARNING SIGNS - SEEK IMMEDIATE HOSPITAL CARE:")
+                for item in warn_items:
+                    en_out.append(f"- {item}")
 
         # 4. Nutrition - Paraphrased only from source-backed instructions
         diet = cp.get("diet", [])
         if diet:
-            en_out.append("\nNUTRITION AND MEAL GUIDELINES:")
             diet_items = []
             diet_blob = " ".join(diet).lower()
             if any(k in diet_blob for k in ["salt", "sodium"]):
@@ -88,15 +87,14 @@ class SubmissionGenerator:
                 diet_items.append("Choose soft, freshly prepared, gentle foods")
             if any(k in diet_blob for k in ["fluid", "water", "hydration"]):
                 diet_items.append("Drink adequate amounts of clean, boiled water")
-            if not diet_items:
-                diet_items.append("Follow healthy home-cooked meals as directed")
-            for item in diet_items:
-                en_out.append(f"- {item}")
+            if diet_items:
+                en_out.append("\nNUTRITION AND MEAL GUIDELINES:")
+                for item in diet_items:
+                    en_out.append(f"- {item}")
 
         # 5. Activity and Rest - Paraphrased only from source-backed instructions
         act = cp.get("activity", [])
         if act:
-            en_out.append("\nDAILY ACTIVITY AND REST:")
             act_items = []
             act_blob = " ".join(act).lower()
             if any(k in act_blob for k in ["heavy", "lifting"]):
@@ -111,15 +109,14 @@ class SubmissionGenerator:
                 act_items.append("Perform gentle recovery exercises as guided by your care team")
             if any(k in act_blob for k in ["squat", "cross-legged", "toilet"]):
                 act_items.append("Use a western-style toilet and avoid squatting postures")
-            if not act_items:
-                act_items.append("Keep physical activity light and rest when fatigued")
-            for item in act_items:
-                en_out.append(f"- {item}")
+            if act_items:
+                en_out.append("\nDAILY ACTIVITY AND REST:")
+                for item in act_items:
+                    en_out.append(f"- {item}")
 
         # 6. Wound Care - Paraphrased only from source-backed instructions
         wound = cp.get("wound_care", [])
         if wound:
-            en_out.append("\nWOUND CARE GUIDELINES:")
             wound_items = []
             wound_blob = " ".join(wound).lower()
             if any(k in wound_blob for k in ["clean", "dry"]):
@@ -130,10 +127,10 @@ class SubmissionGenerator:
                 wound_items.append("Leave the dressing in place until your scheduled clinic review")
             if any(k in wound_blob for k in ["ice", "pack"]):
                 wound_items.append("Apply a cool ice pack over the joint for short periods as guided")
-            if not wound_items:
-                wound_items.append("Handle the healing site with clean hands and protect it from dirt")
-            for item in wound_items:
-                en_out.append(f"- {item}")
+            if wound_items:
+                en_out.append("\nWOUND CARE GUIDELINES:")
+                for item in wound_items:
+                    en_out.append(f"- {item}")
 
         # 7. Follow-up Appointments - ONLY if present in source
         follow_ups = cp.get("follow_ups", [])

@@ -62,11 +62,19 @@ class MedicationExtractor:
         elif re.search(r"\bat (?:bedtime|night)\b|HS\b", clean_ln, re.I):
             timing = "at bedtime"
 
-        how_plain = f"Take {dose} {freq}"
+        # Sanitize duration to prevent "for -" or "for till next review"
+        if duration in ["-", "--", "---", "none", "nil", "n/a", "N/A"]:
+            duration = ""
+
+        how_plain = f"Take {dose} {freq}".strip()
         if timing:
             how_plain += f", {timing}"
         if duration:
-            how_plain += f", for {duration}"
+            dur_low = duration.lower().strip()
+            if dur_low.startswith("till") or dur_low.startswith("until") or dur_low == "lifelong":
+                how_plain += f", {duration}"
+            else:
+                how_plain += f", for {duration}"
         how_plain += "."
 
         return {
@@ -101,11 +109,18 @@ class MedicationExtractor:
                         m_name = "Iron + Folic Acid (IFA)"
                         m_dose = "1 tablet"
 
-                    how_plain = f"Take {m_dose} {m_freq}"
+                    if m_dur in ["-", "--", "---", "none", "nil", "n/a", "N/A"]:
+                        m_dur = ""
+
+                    how_plain = f"Take {m_dose} {m_freq}".strip()
                     if m_inst:
                         how_plain += f", {m_inst}"
                     if m_dur:
-                        how_plain += f", for {m_dur}"
+                        dur_low = m_dur.lower().strip()
+                        if dur_low.startswith("till") or dur_low.startswith("until") or dur_low == "lifelong":
+                            how_plain += f", {m_dur}"
+                        else:
+                            how_plain += f", for {m_dur}"
                     how_plain += "."
 
                     meds.append({

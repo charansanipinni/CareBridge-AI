@@ -65,7 +65,7 @@ def parse_dose(clean_ln: str, normalizer: DrugNormalizer) -> Tuple[str, str]:
     # Clean name: Strip parenthetical content e.g. "(100 mcg)", "(Human)"
     clean_ln_no_paren = re.sub(r"\([^)]*\)", " ", clean_ln)
     name_part = re.split(
-        r"\s+(?:PO|SC|SL|PRN|OD|BD|TDS|QID|HS|SOS|\d+-\d+-\d+|x\s*\d+|till|life|after|before|\d+\s*mg\s*1-0-0|\d+\s*mg\s*OD|\d+\s*mg\s*BD|\d+\s*U\s*SC|\d+\s*units\s*SC)",
+        r"\s+(?:once\s+daily|twice\s+daily|three\s+times\s+daily|four\s+times\s+daily|once\s+a\s+day|twice\s+a\s+day|three\s+times\s+a\s+day|as\s+needed|every\s+\d+\s*hours?|PO|SC|SL|PRN|OD|BD|TDS|TID|QID|HS|SOS|\d+-\d+-\d+|x\s*\d+|till|until|life|after|before|\d+\s*mg\s*1-0-0|\d+\s*mg\s*OD|\d+\s*mg\s*BD|\d+\s*U\s*SC|\d+\s*units\s*SC)",
         clean_ln_no_paren,
         maxsplit=1,
         flags=re.I,
@@ -101,5 +101,19 @@ def parse_dose(clean_ln: str, normalizer: DrugNormalizer) -> Tuple[str, str]:
             final_dose = f"{num_m.group(1)} mg"
         else:
             final_dose = "1 tablet"
+
+    # Avoid duplicated strength in name (e.g. "Augmentin 625 625 mg" or "Dolo 650 1 tab 1 tab")
+    # If name ends with the dose, unit, or dose numbers, trim them cleanly
+    if final_dose:
+        # Strip final_dose if it appears in name
+        name_clean = re.sub(r"\b" + re.escape(final_dose) + r"\b", "", name_clean, flags=re.I).strip()
+        # If final dose is a standard number+unit e.g. "500 mg", also strip trailing "500 mg" or "500" from name
+        m_fd = re.match(r"^(\d+(?:\.\d+)?)\s*(mg|mcg|g|ml|iu|units?)", final_dose, re.I)
+        if m_fd:
+            num_part = m_fd.group(1)
+            name_clean = re.sub(r"\b" + re.escape(num_part) + r"\s*(?:mg|mcg|g|ml|iu|units?)?\b\s*$", "", name_clean, flags=re.I).strip()
+
+    # Strip any trailing frequency or instruction words that leaked into name
+    name_clean = re.sub(r"\s+(?:twice\s+daily|once\s+daily|three\s+times\s+daily|1\s+tab|1\s+tablet|one\s+tablet|as\s+prescribed|od|bd|tds|qid|hs|sos)\s*$", "", name_clean, flags=re.I).strip()
 
     return final_dose, name_clean

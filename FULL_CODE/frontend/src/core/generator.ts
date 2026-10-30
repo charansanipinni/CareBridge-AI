@@ -291,7 +291,7 @@ function generateTeluguCarePlan(facts: ClinicalFacts): PatientCarePlan {
 
     let routeTe = m.route;
     if (routeTe.toLowerCase().includes('mouth') || routeTe.toLowerCase().includes('oral')) {
-      routeTe = 'నోటి ద్వారా నీటితో మింగండి';
+      routeTe = 'నోటి ద్వారా తీసుకోండి';
     } else if (routeTe.toLowerCase().includes('inhal')) {
       routeTe = 'ఇన్‌హేలర్ ద్వారా పీల్చండి';
     }

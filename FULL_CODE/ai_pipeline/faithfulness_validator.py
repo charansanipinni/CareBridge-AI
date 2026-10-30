@@ -1,15 +1,25 @@
-"""Faithfulness Validator: Comprehensive clinical safety engine executing 15 source-to-output checks.
-Ensures zero hallucination, zero omitted instructions, and complete numerical preservation.
+"""Faithfulness Validator: Comprehensive clinical safety engine executing source-to-output validation.
+Validates medication association contextually, checks dosage, units, frequencies, durations,
+timings, STOP instructions, follow-up dates, and dual-language preservation.
 """
 
 import re
 from typing import Dict, List, Tuple, Any, Optional
+from pathlib import Path
 
 DATE_RE = re.compile(r"\b(\d{4}-\d{2}-\d{2}|\d{1,2}[/-]\d{1,2}[/-]\d{2,4})\b")
 
 class FaithfulnessValidator:
-    def __init__(self):
-        pass
+    def __init__(self, normalizer=None):
+        if normalizer is None:
+            try:
+                from .drug_normalizer import DrugNormalizer
+                ref_path = Path(__file__).resolve().parent.parent / "config" / "drug_reference.csv"
+                self.normalizer = DrugNormalizer(ref_path) if ref_path.exists() else None
+            except Exception:
+                self.normalizer = None
+        else:
+            self.normalizer = normalizer
 
     def validate(
         self, 
@@ -43,7 +53,6 @@ class FaithfulnessValidator:
         # ---------------------------------------------------------
         missing_med_errors = []
         if source_text:
-            # Look for discharge medicine section
             rx_match = re.search(r"(?:discharge\s+medications?|advice\s+on\s+discharge|treatment\s+on\s+discharge|rx\s+on\s+discharge)[\s\S]*?(?=(?:follow[\s-]*up|warning|emergency|diet|activity|\Z))", source_lower)
             rx_text = rx_match.group(0) if rx_match else source_lower
             plan_med_names = [m.get("name", "").lower() for m in meds]
@@ -53,11 +62,9 @@ class FaithfulnessValidator:
                 ln_str = ln.strip()
                 if not ln_str or len(ln_str) < 4:
                     continue
-                # If line starts with a numbering or Tab/Cap/Inj and has dosage
                 if re.search(r"^(?:\d+[\.\)]|tab|cap|inj|syp|t\.|c\.)", ln_str, re.I):
                     words = [w for w in re.split(r"[^a-z0-9]", ln_str) if len(w) > 3 and not w.isdigit()]
                     if words:
-                        # Check if at least one characteristic word of the med exists in plan
                         found = any(any(w in pmn for w in words) for pmn in plan_med_names)
                         is_stop = any(w in " ".join(stop_meds).lower() for w in words)
                         if not found and not is_stop:
@@ -81,7 +88,22 @@ class FaithfulnessValidator:
                 m_name = m.get("name", "").lower()
                 clean_name = re.sub(r"^(?:tab(?:let)?|cap(?:sule)?|inj(?:ection)?|syp|sachet)\.?\s*", "", m_name).strip()
                 primary_word = re.split(r"[^a-z0-9]", clean_name)[0] if clean_name else ""
-                if primary_word and len(primary_word) > 3 and primary_word not in source_lower:
+                
+                # Check aliases via normalizer if primary word not directly in source
+                found_drug = False
+                if primary_word and len(primary_word) > 3 and primary_word in source_lower:
+                    found_drug = True
+                elif self.normalizer:
+                    gen = self.normalizer.get_generic(clean_name)
+                    if gen and gen in source_lower:
+                        found_drug = True
+                    elif gen and self.normalizer.drug_ref.get(gen):
+                        for b in self.normalizer.drug_ref[gen].get("brands", []):
+                            if b.lower() in source_lower:
+                                found_drug = True
+                                break
+
+                if not found_drug and primary_word and len(primary_word) > 3:
                     extra_meds.append(m.get("name"))
 
         if extra_meds:
@@ -128,15 +150,25 @@ class FaithfulnessValidator:
                     num_val = num_match.group(1)
                     unit_val = num_match.group(2) or ""
                     
-                    # Contextual search: look around the specific medicine's mention in source
                     m_name = m.get("name", "").lower()
                     clean_name = re.sub(r"^(?:tab(?:let)?|cap(?:sule)?|inj(?:ection)?|syp|sachet|ointment)\.?\s*", "", m_name).strip()
                     primary_word = re.split(r"[^a-z0-9]", clean_name)[0] if clean_name else ""
                     
+                    search_words = [primary_word] if primary_word else []
+                    if self.normalizer:
+                        gen = self.normalizer.get_generic(clean_name)
+                        if gen:
+                            search_words.append(re.split(r"[^a-z0-9]", gen)[0])
+                            ref = self.normalizer.drug_ref.get(gen)
+                            if ref:
+                                for b in ref.get("brands", []):
+                                    search_words.append(re.split(r"[^a-z0-9]", b.lower())[0])
+
                     found_in_context = False
-                    if primary_word and primary_word in source_lower:
-                        # Find all occurrences of primary_word in source_lower
-                        for match in re.finditer(re.escape(primary_word), source_lower):
+                    for sword in set(search_words):
+                        if not sword or len(sword) < 3 or sword not in source_lower:
+                            continue
+                        for match in re.finditer(re.escape(sword), source_lower):
                             pos = match.start()
                             # Confine window to the specific line/table row of this medicine
                             line_start = source_lower.rfind("\n", 0, pos)
@@ -156,18 +188,15 @@ class FaithfulnessValidator:
 
                             # Exact whole-token match for the number to avoid substring false matches
                             if re.search(r"\b" + re.escape(num_val) + r"\b", window):
-                                # Also verify unit if specified
                                 if unit_val and unit_val in ["mg", "mcg", "g", "ml", "iu", "units"]:
-                                    # Ensure unit is in that line and not mismatched
                                     if unit_val in window or (unit_val == "mg" and "1 g" in window) or (unit_val == "g" and "1000 mg" in window):
                                         found_in_context = True
                                         break
                                 else:
                                     found_in_context = True
                                     break
-                    else:
-                        # If drug name not found (flagged in Check 2), check source as fallback
-                        found_in_context = (num_val in source_lower)
+                        if found_in_context:
+                            break
 
                     if not found_in_context:
                         altered_doses.append(f"{m.get('name')} dose '{dose}' not grounded in drug's source context")
@@ -193,10 +222,22 @@ class FaithfulnessValidator:
                 m_name = m.get("name", "").lower()
                 clean_name = re.split(r"[^a-z0-9]", m_name)[0]
                 if clean_name and len(clean_name) > 3 and clean_name in source_lower:
-                    # Verify frequency code or slots exist around drug name
                     pos = source_lower.find(clean_name)
                     window = source_lower[max(0, pos - 50): min(len(source_lower), pos + 100)]
                     freq_tokens = [freq.lower(), freq.replace(" ", "").lower()]
+                    
+                    # Accept slot notation equivalents
+                    if freq in ["OD", "ONCE DAILY"]:
+                        freq_tokens.extend(["1-0-0", "0-1-0", "0-0-1", "once"])
+                    elif freq in ["BD", "TWICE DAILY"]:
+                        freq_tokens.extend(["1-0-1", "1-1-0", "0-1-1", "twice"])
+                    elif freq in ["TDS", "TID", "THREE TIMES DAILY"]:
+                        freq_tokens.extend(["1-1-1", "three times", "thrice"])
+                    elif freq in ["QID", "FOUR TIMES DAILY"]:
+                        freq_tokens.extend(["1-1-1-1", "four times"])
+                    elif freq in ["SOS", "PRN"]:
+                        freq_tokens.extend(["as needed", "when required", "sos", "prn"])
+
                     if not any(ft in window for ft in freq_tokens) and not any(k in window for k in ["daily", "times", "od", "bd", "tds", "sos", "prn"]):
                         freq_errors.append(f"{m.get('name')} frequency {freq} altered")
 
@@ -266,13 +307,11 @@ class FaithfulnessValidator:
             clean_s_name = re.sub(r"^(?:tab(?:let)?|cap(?:sule)?|inj(?:ection)?|syp|sachet)\.?\s*", "", s_clean).strip()
             primary_s_word = re.split(r"[^a-z0-9]", clean_s_name)[0] if clean_s_name else ""
 
-            # Verify that source text explicitly orders this medicine discontinued
             if source_text and primary_s_word:
                 stop_match = re.search(r"\b(?:stop|discontinue|withhold|hold|taper\s+and\s+stop)\b[^\n]*?" + re.escape(primary_s_word), source_lower)
                 if not stop_match:
                     wrong_stops.append(f"{s} (no explicit stop order in source)")
 
-            # Also verify it is not simultaneously listed as an active medicine to take
             for m in meds:
                 m_name_low = m.get("name", "").lower()
                 clean_m_name = re.sub(r"^(?:tab(?:let)?|cap(?:sule)?|inj(?:ection)?|syp|sachet)\.?\s*", "", m_name_low).strip()
@@ -298,7 +337,6 @@ class FaithfulnessValidator:
             fu_text = fu_section.group(0) if fu_section else ""
             plan_dates = {f.get("date") for f in fus}
             for d in DATE_RE.findall(fu_text):
-                # normalize date
                 parts = re.split(r"[-/]", d)
                 if len(parts) == 3 and len(parts[0]) == 4:
                     iso = d
@@ -327,7 +365,6 @@ class FaithfulnessValidator:
             if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", dt):
                 invented_dates.append(f"{dt} (invalid ISO date format)")
             elif source_text and dt not in source_text:
-                # check if parts appear
                 parts = dt.split("-")
                 if not (parts[0] in source_text and parts[2] in source_text):
                     invented_dates.append(dt)
@@ -410,11 +447,10 @@ class FaithfulnessValidator:
             checks["unsupported_activity"] = {"status": "PASS", "detail": msg}
 
         # ---------------------------------------------------------
-        # CHECK 15: Telugu Numeric Corruption
+        # CHECK 15: Telugu Numeric Corruption & Numerical Mismatch
         # ---------------------------------------------------------
         corrupted_nums = []
         if translation_text:
-            # Check every medicine dose number and follow up date is in translation text
             for m in meds:
                 dose = m.get("dose", "")
                 for token in re.findall(r"\b\d+(?:\.\d+)?\b", dose):
@@ -433,6 +469,29 @@ class FaithfulnessValidator:
             msg = "All numerical doses, units, and dates preserved faithfully in Telugu script."
             passed.append(msg)
             checks["telugu_numeric_corruption"] = {"status": "PASS", "detail": msg}
+
+        # ---------------------------------------------------------
+        # CHECK 16: Unsupported Water Instructions
+        # ---------------------------------------------------------
+        unsupported_water = []
+        if source_text:
+            has_water_in_source = any(k in source_lower for k in ["water", "fluid", "hydration", "drink"])
+            # Check if any plain text or translation instructs water intake without source mention
+            for m in meds:
+                how_plain = m.get("how_to_take_plain", "").lower()
+                if "water" in how_plain and not has_water_in_source:
+                    unsupported_water.append(m.get("name", "medication"))
+            if translation_text and "నీటితో" in translation_text and not has_water_in_source:
+                unsupported_water.append("Telugu water instruction added without source mention")
+
+        if unsupported_water:
+            msg = f"Unsupported water instructions detected: {', '.join(unsupported_water)}"
+            flags.append(msg)
+            checks["unsupported_water"] = {"status": "FAIL", "detail": msg}
+        else:
+            msg = "Water instructions strictly source-grounded."
+            passed.append(msg)
+            checks["unsupported_water"] = {"status": "PASS", "detail": msg}
 
         is_valid = len(flags) == 0
         return {

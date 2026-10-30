@@ -412,3 +412,145 @@ def test_batch_processor_execution(tmp_path):
     assert report["total_records_failed"] == 0
     assert out_file.exists()
     assert report_file.exists()
+
+# 16. Pre-Submission Regression Tests for Section 7
+def test_missing_medicine_frequency_fails():
+    validator = FaithfulnessValidator()
+    source = "DISCHARGE MEDICATIONS:\n1. Tab. Metformin 500 mg BD"
+    cp = {
+        "medicines": [{"name": "Metformin", "dose": "500 mg", "frequency": "", "timing": "after food"}],
+        "stop_medicines": [],
+        "follow_ups": [],
+    }
+    report = validator.validate_detailed(cp, source)
+    assert report["is_valid"] is False
+    assert report["checks"]["altered_frequency"]["status"] == "FAIL"
+
+def test_missing_medicine_duration_handling():
+    from ai_pipeline.medication_extractor import MedicationExtractor
+    normalizer = DrugNormalizer()
+    extractor = MedicationExtractor(normalizer)
+    res = extractor.parse_single_line("Tab. Metformin 500 mg BD after food")
+    assert res["duration"] == ""
+    assert "for -" not in res["how_to_take_plain"]
+    assert "for till next review" not in res["how_to_take_plain"]
+
+def test_unknown_medicine_timing_no_assumption():
+    translator = TranslationService()
+    cp = {
+        "medicines": [{"name": "Metformin", "dose": "500 mg", "frequency": "BD", "timing": ""}],
+        "stop_medicines": [],
+        "warning_signs": [],
+        "diet": [],
+        "activity": [],
+        "wound_care": [],
+        "follow_ups": [],
+    }
+    te_text = translator.generate_telugu(cp)
+    # Must not assume before food or after food or water
+    assert "నీటితో" not in te_text
+    assert "భోజనం తర్వాత" not in te_text
+    assert "భోజనానికి ముందు" not in te_text
+
+def test_unsupported_water_instruction_fails():
+    validator = FaithfulnessValidator()
+    source = "DISCHARGE MEDICATIONS:\n1. Tab. Metformin 500 mg BD"
+    cp = {
+        "medicines": [{"name": "Metformin", "dose": "500 mg", "frequency": "BD", "how_to_take_plain": "Take with water."}],
+        "stop_medicines": [],
+        "follow_ups": [],
+    }
+    report = validator.validate_detailed(cp, source, translation_text="ఈ మందును నీటితో వేసుకోండి.")
+    assert report["is_valid"] is False
+    assert report["checks"]["unsupported_water"]["status"] == "FAIL"
+
+def test_unsupported_warning_signs_fails():
+    validator = FaithfulnessValidator()
+    source = "DISCHARGE MEDICATIONS:\n1. Tab. Metformin 500 mg BD\nNo other complaints."
+    cp = {
+        "medicines": [{"name": "Metformin", "dose": "500 mg", "frequency": "BD"}],
+        "stop_medicines": [],
+        "warning_signs": ["Sudden chest pain", "High fever"],
+        "follow_ups": [],
+    }
+    report = validator.validate_detailed(cp, source)
+    assert report["is_valid"] is False
+    assert report["checks"]["invented_warning_signs"]["status"] == "FAIL"
+
+def test_unsupported_dietary_instructions_fails():
+    validator = FaithfulnessValidator()
+    source = "DISCHARGE MEDICATIONS:\n1. Tab. Metformin 500 mg BD"
+    cp = {
+        "medicines": [{"name": "Metformin", "dose": "500 mg", "frequency": "BD"}],
+        "stop_medicines": [],
+        "diet": ["Strict low sodium diet under 2g/day"],
+        "follow_ups": [],
+    }
+    report = validator.validate_detailed(cp, source)
+    assert report["is_valid"] is False
+    assert report["checks"]["unsupported_diet"]["status"] == "FAIL"
+
+def test_wrapped_prescriptions_contextual_match():
+    validator = FaithfulnessValidator()
+    source = """
+    DISCHARGE MEDICATIONS:
+    1. Tab. Amoxicillin Clavulanate
+       625 mg BD x 5 days
+    2. Tab. Paracetamol 650 mg TDS
+    """
+    cp = {
+        "medicines": [
+            {"name": "Amoxicillin Clavulanate", "dose": "625 mg", "frequency": "BD", "duration": "5 days"},
+            {"name": "Paracetamol", "dose": "650 mg", "frequency": "TDS"},
+        ],
+        "stop_medicines": [],
+        "follow_ups": [],
+    }
+    report = validator.validate_detailed(cp, source)
+    assert report["checks"]["altered_dose"]["status"] == "PASS"
+
+def test_multiple_medicines_in_prescription_table():
+    validator = FaithfulnessValidator()
+    source = """
+    | No | Medicine | Strength | Route | Frequency | Duration | Instructions |
+    | 1  | Tab. Metformin | 500 mg | Oral | BD | 15 days | After food |
+    | 2  | Tab. Atorvastatin | 20 mg | Oral | HS | 30 days | At bedtime |
+    """
+    cp = {
+        "medicines": [
+            {"name": "Metformin", "dose": "500 mg", "frequency": "BD", "duration": "15 days", "timing": "after food"},
+            {"name": "Atorvastatin", "dose": "20 mg", "frequency": "HS", "duration": "30 days", "timing": "at bedtime"},
+        ],
+        "stop_medicines": [],
+        "follow_ups": [],
+    }
+    report = validator.validate_detailed(cp, source)
+    assert report["is_valid"] is True
+    assert report["checks"]["altered_dose"]["status"] == "PASS"
+
+def test_followup_date_mismatch_fails():
+    validator = FaithfulnessValidator()
+    source = "Follow up in Medicine OPD on 2026-09-20"
+    cp = {
+        "medicines": [],
+        "stop_medicines": [],
+        "follow_ups": [{"date": "2026-10-15", "with_whom": "Medicine OPD"}],
+    }
+    report = validator.validate_detailed(cp, source)
+    assert report["is_valid"] is False
+    assert report["checks"]["invented_followup_dates"]["status"] == "FAIL"
+
+def test_english_telugu_numerical_mismatch_fails():
+    validator = FaithfulnessValidator()
+    source = "Tab. Metformin 500 mg BD"
+    cp = {
+        "medicines": [{"name": "Metformin", "dose": "500 mg", "frequency": "BD"}],
+        "stop_medicines": [],
+        "follow_ups": [],
+    }
+    # Telugu translation accidentally replaced 500 with 250
+    mismatched_te = "మీ డిశ్చార్జ్ సంరక్షణ ప్రణాళిక 1. Metformin 250 mg"
+    report = validator.validate_detailed(cp, source, translation_text=mismatched_te)
+    assert report["is_valid"] is False
+    assert report["checks"]["telugu_numeric_corruption"]["status"] == "FAIL"
+

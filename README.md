@@ -47,17 +47,17 @@ cp .env.example .env
 
 ## How to run the tests
 
-Execute all automated unit and safety integration tests across both TypeScript and Python pipelines (51 automated tests total):
+Execute all automated unit and safety integration tests across both TypeScript and Python pipelines (77 automated tests total):
 
 ```bash
-# 1. Run Python AI Pipeline Safety Tests (15/15 passing)
+# 1. Run Python AI Pipeline Safety Tests (33/33 passing)
 python -m pytest FULL_CODE/tests/test_pipeline.py
 
-# 2. Run TypeScript UI & Clinical Faithfulness Tests (36/36 passing)
+# 2. Run TypeScript UI & Clinical Faithfulness Tests (44/44 passing)
 npm test
 ```
 
-**Single Command to run all 51 tests:**
+**Single Command to run all 77 tests:**
 ```bash
 npm test && python -m pytest FULL_CODE/tests/test_pipeline.py
 ```
@@ -85,7 +85,8 @@ python FULL_CODE/scripts/generate_predictions.py --split dev
 Run our strict official submission validator against `submission/H2_predictions.jsonl`:
 
 ```bash
-python FULL_CODE/scripts/validate_submission.py submission/H2_predictions.jsonl
+# Verify official submission structure, test IDs against splits.csv, and schema compliance
+python FULL_CODE/scripts/package_submission.py --team_id AVENGERS --validate_only
 ```
 
 Run the official hackathon scoring evaluator against the dev set:
