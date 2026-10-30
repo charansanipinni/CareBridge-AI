@@ -53,8 +53,8 @@ def scan_path_for_security_violations(target_dir: Path):
             fp = Path(root) / f
             fn = f.lower()
 
-            # 1. Reject non-example .env files
-            if fn.startswith(".env") and fn != ".env.example":
+            # 1. Reject non-example .env files (only approved .env.example is allowed)
+            if (fn.startswith(".env") or fn.endswith(".env")) and fn != ".env.example":
                 raise ValueError(f"SECURITY VIOLATION: Environment credential file found: {fp}")
 
             # 2. Reject forbidden extensions (keys, models, databases)

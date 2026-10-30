@@ -18,7 +18,7 @@ class TranslationService:
         # 1. Medications
         meds = cp.get("medicines", [])
         if meds:
-            out.append("మీరు తీసుకోవలసిన ముఖ్యమైన మందులు (వైద్యులు సూచించిన ప్రకారం సమయానికి తీసుకోండి):")
+            out.append("మీరు తీసుకోవలసిన మందులు:")
             for i, m in enumerate(meds, 1):
                 # Name and dose in Latin script with Western digits
                 line = f"{i}. {m['name']} {m['dose']}"
@@ -50,7 +50,7 @@ class TranslationService:
                 elif freq_str:
                     freq_te = freq_str
 
-                # Grounded instruction line (NEVER add water instructions)
+                # Grounded instruction line (NEVER add generic instructions when missing)
                 parts = []
                 if timing_te:
                     parts.append(timing_te)
@@ -59,8 +59,6 @@ class TranslationService:
 
                 if parts:
                     out.append(f"   - ఈ మందును {' '.join(parts)} తీసుకోండి.")
-                else:
-                    out.append("   - ఈ మందును వైద్యులు సూచించిన విధంగా తీసుకోండి.")
 
                 dur_str = (m.get("duration") or "").strip()
                 if dur_str and dur_str not in ["-", "--", "---", "none", "nil", "n/a", "N/A"]:
@@ -191,7 +189,7 @@ class TranslationService:
                 out.append(f"- {f['date']}: వైద్యులను కలిసి పరీక్ష చేయించుకోండి.")
 
         # Clearly separated general safety notice
-        out.append("\nసాధారణ భద్రతా గమనిక (ప్రామాణిక ఆసుపత్రి సమాచారం):")
+        out.append("\n--- సాధారణ భద్రతా గమనిక (ప్రామాణిక ఆసుపత్రి సమాచారం) ---")
         out.append("మీ మందుల వాడకంలో లేదా ఇతర సూచనలలో ఏదైనా సందేహం ఉంటే లేదా మార్పులు అవసరమైతే మీ వైద్యుడిని లేదా నర్సును సంప్రదించండి.")
         out.append("వైద్యుల సలహా లేకుండా మందులను సొంతంగా మార్చడం లేదా ఆపడం సరైనది కాదు.")
 

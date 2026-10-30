@@ -29,7 +29,7 @@ class SubmissionGenerator:
         # 1. Prescribed Medicines
         meds = cp.get("medicines", [])
         if meds:
-            en_out.append("YOUR PRESCRIBED MEDICINES (take exactly as written):")
+            en_out.append("YOUR PRESCRIBED MEDICINES:")
             for i, m in enumerate(meds, 1):
                 en_out.append(f"{i}. {m['name']} {m['dose']}")
                 en_out.append(f"   - {m['how_to_take_plain']}")
@@ -143,7 +143,7 @@ class SubmissionGenerator:
                 en_out.append(f"- {f['date']}: Attend your scheduled review at {with_whom}.")
 
         # Clearly separated general safety notice
-        en_out.append("\nGENERAL SAFETY NOTICE (Standard Hospital Information):")
+        en_out.append("\n--- GENERAL SAFETY NOTICE (Standard Hospital Information) ---")
         en_out.append("If any instruction is unclear or if you feel unwell, contact your doctor or hospital team promptly.")
         en_out.append("Do not stop or alter your medications without clinical advice.")
 
