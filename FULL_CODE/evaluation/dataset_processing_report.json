@@ -1,0 +1,37 @@
+{
+  "timestamp": "2026-10-30T22:10:21.889322+00:00",
+  "dataset_source": "C:\\Mega Hackathon\\h2_official_pack\\H2_Discharge_Summary_to_Care_Plan\\data\\summaries.jsonl",
+  "split_filter": "all",
+  "total_records_discovered": 2000,
+  "total_records_eligible": 2000,
+  "total_records_processed": 2000,
+  "total_records_success": 2000,
+  "total_records_failed": 0,
+  "unique_summary_ids": 2000,
+  "duplicate_summary_ids_count": 0,
+  "duplicate_summary_ids": [],
+  "split_distribution": {
+    "dev": 200,
+    "unlabelled": 1500,
+    "test": 300
+  },
+  "inferred_condition_distribution": {
+    "maternity": 258,
+    "postop": 255,
+    "respiratory": 267,
+    "diabetes": 335,
+    "cardiac": 515,
+    "general_medical": 370
+  },
+  "validation_summary": {
+    "verified_consistent": 688,
+    "requires_clinician_review": 1312,
+    "verification_rate": 0.344
+  },
+  "performance": {
+    "elapsed_seconds": 13.42,
+    "throughput_records_per_sec": 149.03,
+    "peak_memory_mb": 0.96
+  },
+  "failures": []
+}

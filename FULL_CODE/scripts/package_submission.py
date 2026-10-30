@@ -21,7 +21,7 @@ def main():
     parser = argparse.ArgumentParser(description="Package official Hackathon submission zip")
     parser.add_argument("--team_id", required=True, help="Official Team ID issued by organizers (e.g. T042 or AVENGERS)")
     parser.add_argument("--repo_path", default=".", help="Path to current repository root")
-    parser.add_argument("--output_dir", default="dist", help="Directory where zip will be generated")
+    parser.add_argument("--output_dir", default="dist_submission", help="Directory where zip will be generated")
     args = parser.parse_args()
 
     team_id = args.team_id.strip()
@@ -29,8 +29,10 @@ def main():
     pack_folder_name = f"{team_id}_H2"
     repo_path = Path(args.repo_path).resolve()
     output_dir = Path(args.output_dir).resolve()
+    output_dir.mkdir(parents=True, exist_ok=True)
     clone_dest = output_dir / pack_folder_name
     target_zip = output_dir / zip_name
+    root_zip = repo_path / zip_name
 
     print("=" * 70)
     print(f" PACKAGING SUBMISSION FOR TEAM: {team_id}")
@@ -42,12 +44,22 @@ def main():
         print(f"Cleaning existing staging folder: {clone_dest}")
         shutil.rmtree(clone_dest, ignore_errors=True)
 
-    # 2. Fresh git clone
+    # 2. Fresh git clone or resilient staging copy
     print(f"Creating fresh git clone from {repo_path} -> {clone_dest}...")
     res = subprocess.run(["git", "clone", str(repo_path), str(clone_dest)], capture_output=True, text=True)
     if res.returncode != 0:
-        print(f"Git clone failed: {res.stderr}", file=sys.stderr)
-        sys.exit(1)
+        print(f"Git clone encountered environment issue ({res.stderr.strip()}); performing clean repository staging...", file=sys.stderr)
+        def ignore_patterns(dir_path, files):
+            ignored = set()
+            for f in files:
+                if f in [".git", "node_modules", "dist", "dist_submission", ".venv", "venv", "__pycache__", ".pytest_cache", ".DS_Store", "h2_official_pack"]:
+                    ignored.add(f)
+                elif f == ".env" or (f.startswith(".env.") and not f.endswith(".example")):
+                    ignored.add(f)
+                elif f.endswith(".pyc") or f == "all_2000_predictions.jsonl" or f == zip_name or f.endswith(".zip"):
+                    ignored.add(f)
+            return ignored
+        shutil.copytree(repo_path, clone_dest, ignore=ignore_patterns)
 
     # 3. Verify submission file exists and is intact
     sub_file = clone_dest / "submission" / "H2_predictions.jsonl"
@@ -63,7 +75,7 @@ def main():
         sys.exit(1)
 
     # 4. Check and remove forbidden directories and metadata in clone
-    forbidden = [".git", ".env", "data", "models", ".venv", "venv", "node_modules", ".pytest_cache", "__pycache__"]
+    forbidden = [".git", ".env", "data", "models", ".venv", "venv", "node_modules", ".pytest_cache", "__pycache__", "h2_official_pack"]
     for item in forbidden:
         p = clone_dest / item
         if p.exists():
@@ -72,6 +84,11 @@ def main():
                 shutil.rmtree(p, ignore_errors=True)
             else:
                 p.unlink()
+
+    # Clean any local generated predictions files from evaluation folder inside clone
+    all_2000_p = clone_dest / "FULL_CODE" / "evaluation" / "all_2000_predictions.jsonl"
+    if all_2000_p.exists():
+        all_2000_p.unlink()
 
     # 5. Create Zip archive
     print(f"Creating ZIP archive: {target_zip}...")
@@ -89,8 +106,11 @@ def main():
                 zipf.write(file_path, arcname)
 
     zip_size_mb = target_zip.stat().st_size / (1024 * 1024)
+    # Also save a copy at project root
+    shutil.copy2(target_zip, root_zip)
     print("=" * 70)
     print(f" SUBMISSION ZIP READY: {target_zip} ({zip_size_mb:.2f} MB)")
+    print(f" Root Archive Copy:    {root_zip}")
     print(" Validated checklist:")
     print("  [x] All code in FULL_CODE/")
     print("  [x] submission/H2_predictions.jsonl included (300 records)")

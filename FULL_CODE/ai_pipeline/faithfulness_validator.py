@@ -115,7 +115,7 @@ class FaithfulnessValidator:
             checks["duplicate_medicines"] = {"status": "PASS", "detail": msg}
 
         # ---------------------------------------------------------
-        # CHECK 4: Altered Dose Amount or Unit
+        # CHECK 4: Altered Dose Amount or Unit (Contextually Bound)
         # ---------------------------------------------------------
         altered_doses = []
         for i, m in enumerate(meds, 1):
@@ -123,18 +123,61 @@ class FaithfulnessValidator:
             if not dose:
                 altered_doses.append(f"{m.get('name')} (missing dose)")
             elif source_text:
-                num_match = re.search(r"(\d+(?:\.\d+)?)\s*(mg|mcg|g|ml|iu|units?|puff|tablet)?", dose.lower())
+                num_match = re.search(r"(\d+(?:\.\d+)?)\s*(mg|mcg|g|ml|iu|units?|puffs?|drops?|tablets?)?", dose.lower())
                 if num_match:
                     num_val = num_match.group(1)
-                    if num_val not in source_lower:
-                        altered_doses.append(f"{m.get('name')} dose {dose} not in source")
+                    unit_val = num_match.group(2) or ""
+                    
+                    # Contextual search: look around the specific medicine's mention in source
+                    m_name = m.get("name", "").lower()
+                    clean_name = re.sub(r"^(?:tab(?:let)?|cap(?:sule)?|inj(?:ection)?|syp|sachet|ointment)\.?\s*", "", m_name).strip()
+                    primary_word = re.split(r"[^a-z0-9]", clean_name)[0] if clean_name else ""
+                    
+                    found_in_context = False
+                    if primary_word and primary_word in source_lower:
+                        # Find all occurrences of primary_word in source_lower
+                        for match in re.finditer(re.escape(primary_word), source_lower):
+                            pos = match.start()
+                            # Confine window to the specific line/table row of this medicine
+                            line_start = source_lower.rfind("\n", 0, pos)
+                            line_start = 0 if line_start == -1 else line_start + 1
+                            line_end = source_lower.find("\n", pos)
+                            line_end = len(source_lower) if line_end == -1 else line_end
+                            
+                            # Check next line if it is a continuation of the same prescription
+                            if line_end < len(source_lower):
+                                next_newline = source_lower.find("\n", line_end + 1)
+                                next_newline = len(source_lower) if next_newline == -1 else next_newline
+                                next_line = source_lower[line_end + 1:next_newline].strip()
+                                if next_line and not re.match(r"^(?:\d+[\.\)]|tab|cap|inj|syp|t\.|c\.|stop|follow|diet|activity|warning)", next_line):
+                                    line_end = next_newline
+
+                            window = source_lower[line_start:line_end]
+
+                            # Exact whole-token match for the number to avoid substring false matches
+                            if re.search(r"\b" + re.escape(num_val) + r"\b", window):
+                                # Also verify unit if specified
+                                if unit_val and unit_val in ["mg", "mcg", "g", "ml", "iu", "units"]:
+                                    # Ensure unit is in that line and not mismatched
+                                    if unit_val in window or (unit_val == "mg" and "1 g" in window) or (unit_val == "g" and "1000 mg" in window):
+                                        found_in_context = True
+                                        break
+                                else:
+                                    found_in_context = True
+                                    break
+                    else:
+                        # If drug name not found (flagged in Check 2), check source as fallback
+                        found_in_context = (num_val in source_lower)
+
+                    if not found_in_context:
+                        altered_doses.append(f"{m.get('name')} dose '{dose}' not grounded in drug's source context")
 
         if altered_doses:
             msg = f"Altered or unverified dosages: {', '.join(altered_doses)}"
             flags.append(msg)
             checks["altered_dose"] = {"status": "FAIL", "detail": msg}
         else:
-            msg = "All prescribed dosages faithfully verified against source."
+            msg = "All prescribed dosages faithfully verified in local source context."
             passed.append(msg)
             checks["altered_dose"] = {"status": "PASS", "detail": msg}
 
@@ -220,11 +263,21 @@ class FaithfulnessValidator:
         wrong_stops = []
         for s in stop_meds:
             s_clean = s.lower().strip()
-            if source_text and s_clean not in source_lower:
-                wrong_stops.append(f"{s} (not ordered stopped in source)")
-            # Also check if it's in active discharge meds
+            clean_s_name = re.sub(r"^(?:tab(?:let)?|cap(?:sule)?|inj(?:ection)?|syp|sachet)\.?\s*", "", s_clean).strip()
+            primary_s_word = re.split(r"[^a-z0-9]", clean_s_name)[0] if clean_s_name else ""
+
+            # Verify that source text explicitly orders this medicine discontinued
+            if source_text and primary_s_word:
+                stop_match = re.search(r"\b(?:stop|discontinue|withhold|hold|taper\s+and\s+stop)\b[^\n]*?" + re.escape(primary_s_word), source_lower)
+                if not stop_match:
+                    wrong_stops.append(f"{s} (no explicit stop order in source)")
+
+            # Also verify it is not simultaneously listed as an active medicine to take
             for m in meds:
-                if s_clean in m.get("name", "").lower():
+                m_name_low = m.get("name", "").lower()
+                clean_m_name = re.sub(r"^(?:tab(?:let)?|cap(?:sule)?|inj(?:ection)?|syp|sachet)\.?\s*", "", m_name_low).strip()
+                primary_m_word = re.split(r"[^a-z0-9]", clean_m_name)[0] if clean_m_name else ""
+                if primary_s_word and primary_m_word and primary_s_word == primary_m_word:
                     wrong_stops.append(f"{s} (both active and stopped)")
 
         if wrong_stops:

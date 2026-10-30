@@ -11,6 +11,7 @@ __pycache__/
 dist/
 dist-ssr/
 build/
+dist_submission/
 .next/
 *.local
 
@@ -25,6 +26,7 @@ build/
 h2_official_pack/
 *.zip
 *.tar.gz
+FULL_CODE/evaluation/all_2000_predictions.jsonl
 
 # Logs & temp files
 logs/

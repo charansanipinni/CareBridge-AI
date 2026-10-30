@@ -8,6 +8,7 @@ import pytest
 
 TESTS_DIR = Path(__file__).resolve().parent
 FULL_CODE_DIR = TESTS_DIR.parent
+PROJECT_ROOT = FULL_CODE_DIR.parent
 sys.path.insert(0, str(FULL_CODE_DIR))
 
 from ai_pipeline.drug_normalizer import DrugNormalizer
@@ -263,3 +264,151 @@ def test_15_checks_comprehensive_safety():
     corrupted_te = "మీ డిశ్చార్జ్ సంరక్షణ ప్రణాళిక 1. Telmisartan (dose missing) 2026-08-15"
     report_te = validator.validate_detailed(faithful_cp, source, corrupted_te)
     assert report_te["checks"]["telugu_numeric_corruption"]["status"] == "FAIL"
+
+def test_swapped_dosage_cross_medicine_fail():
+    """Verify Phase 5 requirement: Swapped dose between two existing medicines must FAIL
+
+    even if the number exists elsewhere in the document.
+    """
+    validator = FaithfulnessValidator()
+    source = """
+    DISCHARGE MEDICATIONS:
+    1. Tab. Metformin 500 mg BD after food
+    2. Tab. Cefixime 1000 mg OD
+    """
+
+    # Care plan improperly assigns 1000 mg to Metformin
+    swapped_cp = {
+        "medicines": [
+            {"name": "Metformin", "dose": "1000 mg", "frequency": "BD", "timing": "after food"},
+            {"name": "Cefixime", "dose": "1000 mg", "frequency": "OD", "timing": "after food"},
+        ],
+        "stop_medicines": [],
+        "follow_ups": [],
+    }
+
+    report = validator.validate_detailed(swapped_cp, source)
+    assert report["is_valid"] is False
+    assert report["checks"]["altered_dose"]["status"] == "FAIL"
+    assert "Metformin" in report["checks"]["altered_dose"]["detail"]
+
+def test_unit_mismatch_fail():
+    """Verify Phase 5 requirement: Changed unit (mcg vs mg) must FAIL."""
+    validator = FaithfulnessValidator()
+    source = """
+    DISCHARGE MEDICATIONS:
+    1. Tab. Thyroxine 100 mcg OD on empty stomach
+    """
+    mismatched_unit_cp = {
+        "medicines": [
+            {"name": "Thyroxine", "dose": "100 mg", "frequency": "OD"},
+        ],
+        "stop_medicines": [],
+        "follow_ups": [],
+    }
+    report = validator.validate_detailed(mismatched_unit_cp, source)
+    assert report["is_valid"] is False
+    assert report["checks"]["altered_dose"]["status"] == "FAIL"
+
+# 10. Abbreviation Expansion Tests
+def test_abbreviation_resolver():
+    from ai_pipeline.abbreviation_resolver import AbbreviationResolver
+    resolver = AbbreviationResolver(FULL_CODE_DIR / "config" / "abbreviation_glossary.csv")
+    bd = resolver.resolve("BD")
+    assert bd is not None
+    assert "twice" in bd["plain_language"].lower() or "twice" in bd["expansion"].lower()
+    
+    sos = resolver.resolve("SOS")
+    assert sos is not None
+    assert "needed" in sos["plain_language"].lower() or "emergency" in sos["plain_language"].lower()
+
+# 11. Drug Reference & Hospital-Only Drugs Tests
+def test_drug_reference_hospital_only_exclusion(normalizer):
+    # Verify ceftriaxone is flagged as hospital-only (used_at_discharge = False)
+    ref = normalizer.drug_ref.get("ceftriaxone")
+    if ref:
+        assert ref["used_at_discharge"] is False
+
+    # Verify oral discharge drug is used_at_discharge = True
+    met = normalizer.drug_ref.get("metformin")
+    if met:
+        assert met["used_at_discharge"] is True
+
+# 12. Dropped Medication Detection Test
+def test_dropped_medication_detection():
+    validator = FaithfulnessValidator()
+    source = """
+    DISCHARGE MEDICATIONS:
+    1. Tab. Metformin 500 mg BD after food
+    2. Tab. Atorvastatin 20 mg HS at bedtime
+    """
+    omitted_cp = {
+        "medicines": [
+            {"name": "Metformin", "dose": "500 mg", "frequency": "BD", "timing": "after food"},
+        ],
+        "stop_medicines": [],
+        "follow_ups": [],
+    }
+    report = validator.validate_detailed(omitted_cp, source)
+    assert report["checks"]["missing_medicines"]["status"] == "FAIL"
+    assert "atorvastatin" in report["checks"]["missing_medicines"]["detail"].lower()
+
+# 13. Incorrect STOP Classification Test
+def test_incorrect_stop_classification_detection():
+    validator = FaithfulnessValidator()
+    source = """
+    DISCHARGE MEDICATIONS:
+    1. Tab. Metformin 500 mg BD after food
+    Stop Tab. Glimepiride 2 mg OD
+    """
+    # Care plan falsely tells patient to STOP Metformin
+    wrong_stop_cp = {
+        "medicines": [
+            {"name": "Metformin", "dose": "500 mg", "frequency": "BD", "timing": "after food"},
+        ],
+        "stop_medicines": ["Metformin 500 mg"],
+        "follow_ups": [],
+    }
+    report = validator.validate_detailed(wrong_stop_cp, source)
+    assert report["checks"]["wrong_stop_classification"]["status"] == "FAIL"
+
+# 14. Conflicting Instruction Test
+def test_conflicting_instruction_detection():
+    validator = FaithfulnessValidator()
+    source = """
+    DISCHARGE MEDICATIONS:
+    1. Tab. Metformin 500 mg BD after food
+    """
+    # Care plan contradicts food timing: lists as before food when source says after food
+    conflict_cp = {
+        "medicines": [
+            {"name": "Metformin", "dose": "500 mg", "frequency": "BD", "timing": "before food"},
+        ],
+        "stop_medicines": [],
+        "follow_ups": [],
+    }
+    report = validator.validate_detailed(conflict_cp, source)
+    assert report["checks"]["timing_mismatch"]["status"] == "FAIL"
+
+# 15. Batch Processor Integration Test
+def test_batch_processor_execution(tmp_path):
+    from scripts.batch_processor import process_dataset
+    data_dir = PROJECT_ROOT / "h2_official_pack" / "H2_Discharge_Summary_to_Care_Plan" / "data"
+    out_file = tmp_path / "test_out.jsonl"
+    report_file = tmp_path / "test_report.json"
+    
+    report = process_dataset(
+        summaries_file=data_dir / "summaries.jsonl",
+        splits_file=data_dir / "splits.csv",
+        output_file=out_file,
+        report_file=report_file,
+        split_filter="dev",
+        batch_size=50,
+        validate=True
+    )
+    
+    assert report["total_records_processed"] == 200
+    assert report["total_records_success"] == 200
+    assert report["total_records_failed"] == 0
+    assert out_file.exists()
+    assert report_file.exists()
