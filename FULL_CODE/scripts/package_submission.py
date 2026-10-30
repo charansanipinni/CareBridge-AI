@@ -284,9 +284,20 @@ def main():
         if not (extracted_root / "FULL_CODE").exists():
             print("FATAL: Extracted archive missing FULL_CODE directory!", file=sys.stderr)
             sys.exit(1)
+        if not (extracted_root / "README.md").exists():
+            print("FATAL: Extracted archive missing README.md!", file=sys.stderr)
+            sys.exit(1)
+        if not (extracted_root / "LICENSE").exists():
+            print("FATAL: Extracted archive missing LICENSE!", file=sys.stderr)
+            sys.exit(1)
             
         # Recursive security scan on extracted archive contents
         scan_path_for_security_violations(extracted_root)
+        print("  [x] Post-extraction recursive security scan passed.")
+
+        # Re-verify extracted submission prediction file integrity and official schema
+        validate_predictions_integrity(extracted_root / "submission" / "H2_predictions.jsonl", repo_path)
+        print("  [x] Post-extraction predictions integrity & official schema validation passed on extracted archive.")
 
     zip_size_mb = target_zip.stat().st_size / (1024 * 1024)
     if zip_size_mb > 50.0:
