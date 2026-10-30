@@ -31,6 +31,8 @@ FULL_CODE/evaluation/all_2000_predictions.jsonl
 # Logs & temp files
 logs/
 *.log
+BACKUP_ORIGINAL/
+score.json
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
