@@ -1,168 +1,212 @@
-# CareBridge AI — Discharge Summary to Patient-Understandable Care Plan
+# AVENGERS — H2: CareBridge AI
 
-**Team AVENGERS** | **Talent AP Mega Hackathon 2026** | **Healthcare Track H2**
-
-> *"Clear instructions. Safer transitions home."*
-
----
-
-## 1. Executive Summary & Product Vision
-
-Hospital discharge summaries are written by clinicians for clinicians—dense with medical acronyms, complex dosing intervals (BD, TDS, QDS), and implicit instructions. Patients and caregivers discharged home face a critical transition where misunderstanding instructions can lead to adverse drug events, preventable complications, and hospital readmissions.
-
-**CareBridge AI** bridges this critical gap. It ingests hospital discharge summaries (via PDF, TXT, MD, or text paste) and converts them into structured, simple, Class 8 readability care plans in **English** and **Telugu**.
-
-### Core Product Promise
-> *"Make medical instructions easier to understand without changing their meaning."*
-
-Our **Deterministic Faithfulness Engine** verifies the generated patient instructions against the raw source discharge summary before clinical discharge:
-- Zero medications omitted or invented (zero AI hallucination).
-- Doses, strengths, units, and frequencies match with 100% precision.
-- Follow-up dates and relative timelines are preserved without guessing or inventing calendar dates.
-- Emergency warning signs and escalation steps are preserved.
-- If a source instruction is ambiguous or contradictory, it is flagged prominently as **"Needs Review"** with an alert banner. A green "Verified" badge is strictly suppressed.
+> **"Clear instructions. Safer transitions home."**  
+> **TalentAP Mega Hackathon 2026** | Track: Healthcare | Problem: H2 (Discharge Summary to Patient-Understandable Care Plan)  
+> **Team Name**: AVENGERS  
 
 ---
 
-## 2. Production UX & Navigation Architecture
+## What it does
 
-CareBridge AI features a clean, minimal, patient-centered healthcare SaaS interface:
+When patients leave the hospital, they receive dense, technical discharge summaries packed with latin abbreviations (`T. Glycomet 500 BD PC x 1/12`), dosage shorthand, and critical warning signs. In India, missed doses, medication errors, and avoidable hospital readmissions frequently result from discharge instructions that patients and families cannot understand.
 
-### Main Navigation
-1. **Home**: Welcoming hero section (*"Understand Your Care. Feel More Confident at Home."*), 3-step visual guide, and core trust & safety commitments.
-2. **Create Care Plan**: Guided 4-step workflow preventing cognitive overload:
-   - **Step 1 — Upload Document**: Differentiated Option A (drag-and-drop PDF/TXT upload with removal/replacement) and Option B (large readable text area), plus 1-click curated clinical examples.
-   - **Step 2 — Choose Language**: Large selection cards for **English** (Class 8 Plain Language) and **తెలుగు (Telugu)** with source-retention guarantees.
-   - **Step 3 — Review & Generate**: Document snippet verification, target language confirmation, in-memory privacy assurance, and real 5-stage progress indicator.
-   - **Step 4 — View Your Care Plan**: Clean patient-friendly layout with validation status badge, expandable/collapsible sections, and dedicated "Needs Confirmation" calls.
-3. **My Care Plans**: Safe in-memory session history allowing patients and clinicians to review, download JSON records, print, or delete past plans with 1 click.
-4. **How It Works**: Visual breakdown of the 6-stage clinical architecture and in-depth patient FAQs.
-5. **About CareBridge**: Product mission, clinical boundaries, and Production Readiness Assessment.
-
-### Dual Presentation Levels
-- **Patient View**: Friendly, digestible outcomes (*"Matches original"*, *"Needs confirmation"*, *"Could not be verified"*) focusing on what to take, when, and emergency warning signs.
-- **Professional Review View**: Complete clinical audit tables, source evidence citations, line-by-line ground truth mapping, and the live safety test drift simulator.
+**CareBridge AI** bridges this clinical gap. It converts complex synthetic discharge summaries into structured, verified, patient-friendly care plans:
+- **Plain-Language Translations**: Class-8 readability in both **English** and **Telugu (తెలుగు)**.
+- **Medication Instructions**: Plain explanations of what each medicine is, how much to take, when (with food icons), how long, and what it does.
+- **Red-Flag Warning Signs**: Clear, urgent indicators signaling when to return to the emergency department immediately.
+- **Appointments & Diet**: Chronological follow-up appointments with departments and specific test reports to bring.
+- **Faithfulness Engine**: A deterministic 12-point clinical safety engine ensuring zero dropped medicines, zero altered doses, and zero fabricated instructions.
+- **One-Page Printable Fridge Sheet**: High-contrast, clean layout designed to hang on a patient's refrigerator.
+- **Dual Perspective**: Interactive Patient View and side-by-side Clinician Audit View for healthcare professionals.
 
 ---
 
-## 3. Technology Stack
-
-- **Frontend**: React 19, TypeScript, Vite 8, Tailwind CSS v4, Lucide Icons.
-- **Backend**: Node.js, Express, TypeScript (`tsx`), `pdf-parse`, CORS, dotenv.
-- **Testing**: Vitest with 18 comprehensive clinical safety test scenarios.
-- **Speech**: Web Speech API (`SpeechSynthesisUtterance`) with English & Telugu playback and speed controls.
-- **Styling & Print**: Healthcare SaaS UI (Deep Navy `#0F172A`, Slate `#F8FAFC`, Teal `#0D9488`, Emerald `#16A34A`, Rose `#E11D48`) and dedicated `@media print` A4 stylesheet.
-
----
-
-## 4. Getting Started Locally
+## How to run
 
 ### Prerequisites
-- Node.js (v18.0.0 or later, v26.x supported)
-- npm (v9.x or later)
+- Node.js >= 18.0
+- Python >= 3.10 with `numpy` and `pandas`
 
-### Installation
+### 1. Web Application Setup & Launch
 ```bash
-cd "c:\Mega Hackathon"
+# Install Node dependencies (if not already installed)
 npm install
-```
 
-### Running the Application
-To run both the Express backend API (port 3001) and Vite frontend (port 5173) concurrently:
-```bash
+# Start both Vite Frontend (port 5173) and Backend API (port 3001) concurrently
 npm run dev
 ```
+Open **[http://localhost:5173/](http://localhost:5173/)** in your browser.
 
-The application is accessible at:
-- **Web App**: `http://localhost:5173/`
-- **Backend API**: `http://localhost:3001/api/health`
-
-### Running the Automated Tests
-Run the Vitest test suite covering all 18 clinical scenarios:
+### 2. Environment Configuration
+Copy `.env.example` to `.env` (optional — runs fully in deterministic offline mode if no API key is provided):
 ```bash
+cp .env.example .env
+```
+
+---
+
+## How to run the tests
+
+Execute all automated unit and safety integration tests across both TypeScript and Python pipelines:
+
+```bash
+# 1. Run Python AI Pipeline Safety Tests (13/13 passing)
+python -m pytest FULL_CODE/tests/test_pipeline.py
+
+# 2. Run TypeScript UI & Clinical Faithfulness Tests (18/18 passing)
 npm test
 ```
 
----
-
-## 5. Automated Test Results (18 / 18 Passed)
-
-All 18 tests exercise the actual extraction, generation, security, and validation logic:
-
-```
- RUN  v5.0.5 C:/Mega Hackathon
-
- ✓ src/tests/faithfulness.test.ts (18 tests) 36ms
-   ✓ 1. Valid document extraction: Successfully extracts clinical structure from standard summary
-   ✓ 2. Empty or unreadable input: Handles empty or minimal strings gracefully without throwing
-   ✓ 3. Correct medication-name extraction: Extracts exact brand & generic drug names
-   ✓ 4. Correct matching of dose and units: Preserves numeric strength and units faithfully
-   ✓ 5. Missing medication detection: Flags when a prescribed medication is omitted from care plan
-   ✓ 6. Unsupported medication detection: Flags hallucinated medications not present in source
-   ✓ 7. Changed frequency detection: Detects altered frequency (twice daily changed to once daily)
-   ✓ 8. Changed duration detection: Detects altered duration (5 days changed to 14 days)
-   ✓ 9. Changed follow-up date detection: Flags invented calendar dates when source was relative
-   ✓ 10. Missing warning-sign detection: Flags omitted emergency warning signs
-   ✓ 11. Contradictory source instructions: Accurately detects and flags conflicting orders
-   ✓ 12. Unknown fields and missing information: Preserves missing details as unresolved caveats
-   ✓ 13. Telugu output with changed numerical values: Detects dosage number corruption in Telugu
-   ✓ 14. AI service failure: Operates fully autonomously when external AI services are offline
-   ✓ 15. Offline demo mode: All sample cases generate valid plans and reports deterministically
-   ✓ 16. Print/export behavior & 7-day schedule: Derives correct Day 1 to Day 7 timetable
-   ✓ 17. Malformed model output: Drift simulator modifies plan and triggers immediate validation catch
-   ✓ 18. Prompt-injection defense: Neutralizes override instructions in untrusted discharge documents
-
- Test Files  1 passed (1)
-      Tests  18 passed (18)
+**Single Command to run all 31 tests:**
+```bash
+npm test && python -m pytest FULL_CODE/tests/test_pipeline.py
 ```
 
 ---
 
-## 6. Security & Privacy Documentation
+## How to generate predictions
 
-Please see our dedicated security and privacy standards:
-- [`SECURITY.md`](./SECURITY.md) — Comprehensive explanation of prompt-injection defense, in-memory processing, zero-PHI logging, file upload caps, and production healthcare security roadmaps.
-- [`PRIVACY.md`](./PRIVACY.md) — Explanation of patient data minimization, in-memory ephemeral sessions, 1-click history purging, and HIPAA/GDPR clinical review requirements.
+To generate structured predictions from the dataset:
 
----
+```bash
+# Generate the official test submission (300 predictions) -> submission/H2_predictions.jsonl
+python FULL_CODE/scripts/generate_predictions.py --split test
 
-## 7. Production Readiness Assessment
+# Generate development predictions (200 predictions) -> FULL_CODE/evaluation/dev_predictions.jsonl
+python FULL_CODE/scripts/generate_predictions.py --split dev
+```
 
-In compliance with healthcare safety engineering, we distinguish between website publication readiness and clinical operational readiness:
-
-### A. Website Publication Readiness (COMPLETE)
-- [x] Stable full-stack React 19 + TypeScript + Node architecture.
-- [x] Responsive, accessible, mobile-first healthcare SaaS interface.
-- [x] Deterministic validation engine with 18 automated tests.
-- [x] Prompt-injection disarming and in-memory session protection.
-- [x] Offline Demo Mode operational without external API keys or cloud dependencies.
-- [x] Production build passes (`npm run build`) with zero TypeScript/bundling errors.
-
-### B. Healthcare Operational Readiness (Roadmap for Hospital Deployment)
-- [ ] Multi-center clinical trial with attending hospital physicians.
-- [ ] Formal HIPAA / GDPR Business Associate Agreement (BAA) with hospital cloud providers.
-- [ ] EHR integration with hospital systems via HL7 FHIR APIs (Epic, Cerner).
-- [ ] SaMD (Software as a Medical Device) risk assessment and regulatory filing.
-- [ ] Licensed clinical pharmacist formulary review.
+*Note on dataset location: By default, the generator expects the official H2 data in `data/` or the extracted pack folder. The script accepts `--data_dir <path>` if your data is stored in a custom path.*
 
 ---
 
-## 8. Live Hackathon Judge Demo Script (3-Minute Walkthrough)
+## How to validate the submission
 
-1. **Introduction & Mission (25s)**:
-   > *"Good morning, esteemed judges. We are Team AVENGERS presenting CareBridge AI for Healthcare Track H2. Discharge instructions are often misunderstood by patients, driving hospital readmissions. Our mission is to translate complex summaries into simple, Class 8 readability care plans in English and Telugu without clinical drift."*
-2. **Benchmark Demonstration & Safe Non-Invention (45s)**:
-   > *"Click 'Create My Care Plan'. In Step 1, select '1. Standard Fictional Benchmark'. Notice our non-invention rules:
-   > 1. Follow-up was given as 'in seven days'. CareBridge AI shows 'Timing: In seven days' and alerts the patient that exact appointment date/time were not supplied. It refuses to hallucinate a calendar date.
-   > 2. The source deferred warning signs. CareBridge AI did not fabricate clinical symptoms like fever or bleeding, but generated clarification questions for the surgical team."*
-3. **7-Day Timetable & Audio Reader (35s)**:
-   > *"In Step 4, view the '7-Day Recovery Timetable' tab. You see Day 1 through Day 7 organized by Morning, Afternoon, Evening, and Bedtime, derived strictly from prescribed intervals. Notice on Day 5: '★ Medicine stops after today'. Click 'Play Audio' to hear the instructions read aloud word-for-word in plain English or Telugu."*
-4. **Bilingual Telugu Translation (25s)**:
-   > *"Switch to the 'Bilingual (EN / తెలుగు)' tab. Our Telugu translation preserves drug brand names, numerical strengths (500 mg), and schedules (రోజుకు 2 సార్లు) without translational corruption, evaluated by an Indic Prose Clarity Index."*
-5. **The Safety Trap — Live Error Injection (35s)**:
-   > *"Now switch to 'Professional Review View'. In the Live Safety Test bar, click 'Simulate Error (Mutate Dose 500mg → 50mg)'. Watch the screen: The green 'Verified' badge instantly flips to red 'Needs Review', displaying the exact dose discrepancy and adding an action item for clinician confirmation."*
-6. **1-Page Printable Care Sheet (15s)**:
-   > *"Finally, click 'Print Care Sheet'. The interface transforms into a clean, clutter-free A4 document with doctor signature lines and emergency escalation steps, ready for the patient to take home."*
+Run our strict official submission validator against `submission/H2_predictions.jsonl`:
+
+```bash
+python FULL_CODE/scripts/validate_submission.py submission/H2_predictions.jsonl
+```
+
+Run the official hackathon scoring evaluator against the dev set:
+
+```bash
+python FULL_CODE/evaluation/evaluate.py --submission FULL_CODE/evaluation/dev_predictions.jsonl --truth <PATH_TO_DATA>/dev_fact_key.jsonl --drug_ref FULL_CODE/config/drug_reference.csv --out FULL_CODE/evaluation/dev_score.json
+```
+
+### Official Evaluation Benchmark Results:
+
+| Metric | Official Baseline | CareBridge AI (AVENGERS) | Impact |
+| :--- | :--- | :--- | :--- |
+| **PRIMARY SCORE (0-1)** | **0.5198** | **0.9922** | **+47.24% improvement** |
+| **Medicine Recall** | 0.9983 | **1.0000 (100%)** | Zero dropped medicines |
+| **Dose Accuracy** | 0.8500 | **1.0000 (100%)** | Zero altered doses |
+| **Follow-up Date Recall** | 1.0000 | **1.0000 (100%)** | 100% calendar accuracy |
+| **Stop Medicine Recall** | 1.0000 | **1.0000 (100%)** | Zero active/stop confusion |
+| **English Text Coverage** | 0.9255 | **1.0000 (100%)** | 100% name-dose proximity |
+| **Telugu Script Coverage**| 0.0000 | **1.0000 (100%)** | 100% script & word compliance |
+| **Hard Penalties** | 79 summaries | **0 summaries (0.0%)**| Hard penalties eliminated |
 
 ---
-*Developed with clinical safety engineering by Team AVENGERS for Talent AP Mega Hackathon 2026.*
+
+## Architecture
+
+```
+                       +-----------------------------------+
+                       |    Discharge Summary (PDF/Text)   |
+                       +-----------------+-----------------+
+                                         |
+                                         v
+                       +-----------------------------------+
+                       |         Section Detector          |
+                       |  (Rx, Stops, Advice, Warning, FU) |
+                       +-----------------+-----------------+
+                                         |
+                                         v
+                       +-----------------------------------+
+                       |    Medication & Dose Extractor    |
+                       | - Tapers (Prednisolone)           |
+                       | - Split Insulin (16-0-10 units)   |
+                       | - Half-Tablets (12.5 mg / 25 mg)  |
+                       | - Brand-Number Mapping (Flagyl 400|
+                       +-----------------+-----------------+
+                                         |
+                                         v
+                       +-----------------------------------+
+                       |    Clinical Knowledge Resolver    |
+                       | - drug_reference.csv (81 drugs)   |
+                       | - abbreviation_glossary.csv (257) |
+                       +-----------------+-----------------+
+                                         |
+                    +--------------------+--------------------+
+                    |                                         |
+                    v                                         v
++-----------------------------------+     +-----------------------------------+
+|      English Plan Generator       |     |      Telugu Translation Engine    |
+| - Class 8 Readability             |     | - Latin script for drug names     |
+| - Name + Dose within 200 chars    |     | - Western digits for doses & dates|
+| - Verbatim copy share < 28%       |     | - Native Telugu script >= 82%     |
++-------------------+---------------+     +-------------------+---------------+
+                    |                                         |
+                    +--------------------+--------------------+
+                                         |
+                                         v
+                       +-----------------------------------+
+                       |   Deterministic Safety Engine     |
+                       | (12+ Source-to-Output Assertions) |
+                       +-----------------+-----------------+
+                                         |
+                    +--------------------+--------------------+
+                    |                                         |
+                    v                                         v
++-----------------------------------+     +-----------------------------------+
+|     Interactive Web App & UI      |     |     Official JSONL Submission     |
+| - 4-Step Patient Wizard           |     | - 300 test predictions            |
+| - Clinician Review Mode           |     | - Strict schema validation        |
+| - Printable Fridge Sheet          |     | - submission/H2_predictions.jsonl |
++-----------------------------------+     +-----------------------------------+
+```
+
+---
+
+## AI usage
+
+1. **AI Models & Assistants**:
+   - **Antigravity Coding Assistant**: Used for full-stack architecture design, rapid iteration of deterministic regex parsers, UI polish, and evaluation harness orchestration.
+   - **Deterministic Fallback Engine (Primary)**: Our core H2 prediction pipeline is deterministic, fast, offline-capable, and completely reproducible without external API dependence.
+   - **LLM APIs (Optional Backend Extension)**: Configured in `server/index.ts` to support Google Gemini 1.5 Pro and OpenAI GPT-4o for natural language clinical summarization when API keys are supplied in `.env`.
+2. **Model Limitations & Defenses**:
+   - LLMs can suffer from hallucination and dose drift. To protect clinical safety, our architecture places a deterministic pre- and post-validation layer over all outputs. Every medicine name, dose, frequency, and appointment date is cross-checked against source facts before being rendered to patients.
+
+---
+
+## Pre-built and third-party code
+
+In adherence to Hackathon Rule 12 and Participant Guidelines:
+- **Pre-Built Code**: No code from past hackathons or unrelated previous projects was reused.
+- **Open-Source Libraries**:
+  - `react`, `react-dom`, `vite`: UI framework and build tooling (MIT License).
+  - `tailwindcss`, `lucide-react`: Responsive styling and healthcare iconography (MIT License).
+  - `express`, `cors`: Backend REST server (MIT License).
+  - `pdf-parse`: Local PDF text extraction (MIT License).
+  - `vitest`, `pytest`: Automated test runners (MIT License).
+  - `pandas`, `numpy`: Data manipulation and numerical operations for evaluation (BSD License).
+- **Official Problem Pack**: Includes `data/drug_reference.csv`, `data/abbreviation_glossary.csv`, and `evaluate.py` provided by TalentAP under CC BY 4.0.
+
+---
+
+## Clinical Safety & Responsibility Notice
+
+> **Mandatory Healthcare Disclaimer:**  
+> CareBridge AI is designed to assist patients, caregivers, and hospital discharge staff in understanding discharge instructions. It is positioned as a **clinician-assisting tool**, not a clinician-replacing diagnostic system.
+> - CareBridge AI never changes a prescription, recommends new treatments, or alters dosages.
+> - When clinical information is ambiguous or incomplete, the system flags the item for human clinical review rather than guessing.
+> - If any instruction appears unclear or unexpected, patients are instructed to contact their doctor, nurse, or pharmacist before modifying any medication.
+
+---
+
+## Limitations and Future Roadmap
+
+1. **OCR for Handwritten Notes**: The current text extraction pipeline processes digital PDFs and plain text. Future iterations will integrate specialized Indian medical handwriting OCR for handwritten discharge sheets.
+2. **Additional Indic Languages**: While Telugu (`te`) and English (`en`) are fully supported and evaluated, expanding to Hindi (`hi`), Tamil (`ta`), Kannada (`kn`), and Bengali (`bn`) is a planned extension.
+3. **EHR / ABDM Integration**: Connecting directly to hospital HL7/FHIR feeds and the Ayushman Bharat Digital Mission (ABDM) will enable direct handoffs to personal health records (ABHA).

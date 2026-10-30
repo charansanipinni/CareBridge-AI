@@ -1,0 +1,52 @@
+# CareBridge AI — System & Pipeline Configuration
+# Team: AVENGERS | TalentAP Mega Hackathon 2026 | Healthcare Track H2
+
+app:
+  name: "CareBridge AI"
+  tagline: "Clear instructions. Safer transitions home."
+  version: "2.0.0"
+  team: "AVENGERS"
+  track: "Healthcare - Problem H2"
+  environment: "production_hackathon"
+
+pipeline:
+  target_readability_grade: 8.0
+  supported_languages:
+    - code: "en"
+      name: "English"
+      native_name: "English"
+    - code: "te"
+      name: "Telugu"
+      native_name: "తెలుగు"
+  paths:
+    drug_reference: "FULL_CODE/config/drug_reference.csv"
+    abbreviation_glossary: "FULL_CODE/config/abbreviation_glossary.csv"
+    prompts_dir: "FULL_CODE/prompts"
+    submission_output: "submission/H2_predictions.jsonl"
+  
+limits:
+  max_medicines_per_summary: 100
+  max_field_length: 300
+  max_text_length: 100000
+  name_dose_window_chars: 200
+  max_source_copy_share: 0.50
+
+translation_constraints:
+  min_native_script_share: 0.50
+  max_latin_word_share: 0.35
+  max_top_word_share: 0.15
+  length_ratio_range: [0.4, 3.0]
+  min_function_words: 3
+
+ai_models:
+  primary:
+    provider: "Deterministic Clinical Extraction Engine"
+    mode: "deterministic_faithfulness"
+    temperature: 0.0
+    timeout_seconds: 30
+  optional_llm:
+    provider: "Gemini / OpenAI"
+    model: "gemini-1.5-pro / gpt-4o"
+    temperature: 0.1
+    max_tokens: 4096
+    rate_limit_rpm: 60
