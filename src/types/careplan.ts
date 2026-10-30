@@ -153,6 +153,7 @@ export interface CareBridgeResult {
   timestamp: string;
   sourceText: string;
   sourceType: 'SYNTHETIC_DEMO' | 'PASTED' | 'UPLOADED';
+  documentName?: string;
   mode: ProcessingMode;
   facts: ClinicalFacts;
   carePlanEnglish: PatientCarePlan;
