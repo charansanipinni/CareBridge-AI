@@ -62,14 +62,14 @@ def main():
         print(f"ERROR: Expected 300 test predictions, got {len(lines)}", file=sys.stderr)
         sys.exit(1)
 
-    # 4. Check for forbidden directories in clone
-    forbidden = [".env", "data", "models", ".venv", "venv", "node_modules"]
+    # 4. Check and remove forbidden directories and metadata in clone
+    forbidden = [".git", ".env", "data", "models", ".venv", "venv", "node_modules", ".pytest_cache", "__pycache__"]
     for item in forbidden:
         p = clone_dest / item
-        if p.exists() and not (item == "data" and (clone_dest / "FULL_CODE" / "frontend" / "src" / "data").exists()):
-            print(f"WARNING: Forbidden path {item} found at root of clone! Removing...")
+        if p.exists():
+            print(f"Removing forbidden path from submission: {item}")
             if p.is_dir():
-                shutil.rmtree(p)
+                shutil.rmtree(p, ignore_errors=True)
             else:
                 p.unlink()
 
@@ -80,7 +80,10 @@ def main():
 
     with zipfile.ZipFile(target_zip, "w", zipfile.ZIP_DEFLATED) as zipf:
         for root, dirs, files in os.walk(clone_dest):
+            dirs[:] = [d for d in dirs if d not in [".git", "node_modules", ".venv", "__pycache__", ".pytest_cache"]]
             for file in files:
+                if file == ".env" or (file.startswith(".env.") and not file.endswith(".example")):
+                    continue
                 file_path = Path(root) / file
                 arcname = file_path.relative_to(output_dir)
                 zipf.write(file_path, arcname)
