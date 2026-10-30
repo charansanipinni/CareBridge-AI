@@ -1,0 +1,6 @@
+# CareBridge AI - Python Dependencies
+# TalentAP Mega Hackathon 2026 | Healthcare Track H2 | Team AVENGERS
+numpy>=1.24.0
+pandas>=2.0.0
+pytest>=8.0.0
+python-dotenv>=1.0.0

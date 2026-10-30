@@ -33,6 +33,7 @@ logs/
 *.log
 BACKUP_ORIGINAL/
 score.json
+evaluation/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*

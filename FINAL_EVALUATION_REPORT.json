@@ -1,0 +1,86 @@
+{
+  "timestamp": "2026-10-31T05:05:00+00:00",
+  "project": "CareBridge AI",
+  "challenge": "H2 — Discharge Summary to Patient-Friendly Care Plan",
+  "team_name": "AVENGERS",
+  "official_evaluator": "evaluate.py (official hackathon scoring harness)",
+  "evaluation_split": "dev",
+  "summary_count": 200,
+  "scoring_summary": {
+    "primary_score": 0.9921909523809523,
+    "primary_score_display": "0.9922 (99.22%)",
+    "score_range": "0.0 (worst) to 1.0 (best); higher is better",
+    "baseline_primary_score": 0.5198,
+    "score_improvement_over_baseline": "+0.4724 (+47.24%)",
+    "status": "OFFICIAL EVALUATION REPRODUCED SUCCESSFULLY"
+  },
+  "structured_components": {
+    "mean_structured_before_penalty": 0.9902386904761906,
+    "mean_structured_after_penalty": 0.9902386904761906,
+    "medicine_recall": {
+      "score": 1.0,
+      "weight": 0.30,
+      "description": "Share of active discharge medicines captured"
+    },
+    "dose_exactness": {
+      "score": 1.0,
+      "weight": 0.20,
+      "description": "Exact dose value and unit family preservation"
+    },
+    "frequency_exactness": {
+      "score": 0.9498571428571428,
+      "weight": 0.15,
+      "description": "Preservation of daily frequency and slot patterns"
+    },
+    "duration_exactness": {
+      "score": 0.9845833333333335,
+      "weight": 0.10,
+      "description": "Exact treatment duration in days/weeks/months/lifelong"
+    },
+    "followup_date_recall": {
+      "score": 1.0,
+      "weight": 0.15,
+      "description": "Exact ISO YYYY-MM-DD follow-up appointment date recall"
+    },
+    "stop_medication_recall": {
+      "score": 1.0,
+      "weight": 0.10,
+      "description": "Share of discontinued medicines captured in stop_medicines"
+    }
+  },
+  "hard_penalties": {
+    "total_dropped_medicines": 0,
+    "total_altered_doses": 0,
+    "total_invented_medicines": 0,
+    "total_wrong_stops": 0,
+    "total_invented_followups": 0,
+    "summaries_with_any_hard_penalty": 0,
+    "penalty_elimination_rate": "100% (eliminated all 79 baseline hard-penalty penalties)"
+  },
+  "text_and_translation_components": {
+    "mean_text_score": 1.0,
+    "weight": 0.20,
+    "text_en_coverage": 1.0,
+    "text_translation_coverage": 1.0,
+    "translations_failing_script_check": 0,
+    "target_language": "te (Telugu)",
+    "script_compliance": "PASS (Latin script for drug names, doses, units, dates; Telugu script for prose)",
+    "verbatim_copy_share": "< 28% (threshold <= 50%, 0% copy violations)"
+  },
+  "readability": {
+    "metric": "flesch_kincaid_grade",
+    "reported_mean_grade": 8.0,
+    "target_grade": "Class 8",
+    "status": "COMPLIANT"
+  },
+  "test_split_verification": {
+    "test_record_count": 300,
+    "unique_test_ids": 300,
+    "missing_ids": 0,
+    "extra_ids": 0,
+    "duplicate_ids": 0,
+    "jsonl_line_count": 300,
+    "schema_validation": "PASS (passed evaluate.validate_submission for all 300 test records)",
+    "note": "Evaluated structurally; hidden ground truth unrevealed to prevent label leakage."
+  }
+}
