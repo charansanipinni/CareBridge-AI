@@ -13,7 +13,8 @@ import {
   Lock,
   Printer
 } from 'lucide-react';
-import { CareBridgeResult } from '../types/careplan';
+import { CareBridgeResult, LanguageCode } from '../types/careplan';
+import { getUiStrings } from '../utils/uiTranslations';
 
 interface MyCarePlansPageProps {
   plans: CareBridgeResult[];
@@ -21,6 +22,7 @@ interface MyCarePlansPageProps {
   onDeletePlan: (id: string) => void;
   onClearAll: () => void;
   onNavigateCreate: () => void;
+  interfaceLanguage?: LanguageCode;
 }
 
 export const MyCarePlansPage: React.FC<MyCarePlansPageProps> = ({
@@ -29,7 +31,10 @@ export const MyCarePlansPage: React.FC<MyCarePlansPageProps> = ({
   onDeletePlan,
   onClearAll,
   onNavigateCreate,
+  interfaceLanguage = 'en',
 }) => {
+  const ui = getUiStrings(interfaceLanguage);
+
   const handleDownload = (plan: CareBridgeResult) => {
     const data = {
       product: 'CareBridge AI',
@@ -60,10 +65,10 @@ export const MyCarePlansPage: React.FC<MyCarePlansPageProps> = ({
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-200">
         <div>
           <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
-            My Care Plans
+            {ui.history.title}
           </h1>
           <p className="text-sm text-slate-500 mt-1">
-            Review, download, or print care plans generated during your current session.
+            {ui.history.desc}
           </p>
         </div>
 
@@ -74,7 +79,7 @@ export const MyCarePlansPage: React.FC<MyCarePlansPageProps> = ({
               className="px-3.5 py-2 text-xs font-bold text-rose-600 hover:text-rose-800 bg-rose-50 hover:bg-rose-100 rounded-xl transition flex items-center space-x-1.5"
             >
               <Trash2 className="w-3.5 h-3.5" />
-              <span>Clear Session Plans</span>
+              <span>{ui.history.clearAll}</span>
             </button>
           )}
 
@@ -83,7 +88,7 @@ export const MyCarePlansPage: React.FC<MyCarePlansPageProps> = ({
             className="px-4 py-2.5 bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs rounded-xl shadow-xs transition flex items-center space-x-1.5"
           >
             <Plus className="w-4 h-4" />
-            <span>Create New Plan</span>
+            <span>{ui.common.createCarePlan}</span>
           </button>
         </div>
       </div>
@@ -92,8 +97,10 @@ export const MyCarePlansPage: React.FC<MyCarePlansPageProps> = ({
       <div className="p-4 rounded-xl bg-slate-100 border border-slate-200 text-xs text-slate-600 flex items-start space-x-3">
         <Lock className="w-4 h-4 text-slate-500 shrink-0 mt-0.5" />
         <div>
-          <strong className="text-slate-800 font-semibold">In-Memory Privacy Policy: </strong>
-          For patient safety and confidentiality, CareBridge AI stores care plans in your current browser memory only. No medical documents are saved permanently to public cloud databases. You can download your plans or clear history at any time.
+          <strong className="text-slate-800 font-semibold">{interfaceLanguage === 'te' ? 'ఇన్-మెమరీ గోప్యతా విధానం: ' : 'In-Memory Privacy Policy: '}</strong>
+          {interfaceLanguage === 'te' 
+            ? 'రోగుల భద్రత మరియు గోప్యత కోసం, కేర్‌బ్రిడ్జ్ AI ప్లాన్‌లను మీ బ్రౌజర్ మెమరీలో మాత్రమే నిల్వ చేస్తుంది. క్లౌడ్ డేటాబేస్‌లలో ఏ వైద్య పత్రాలు శాశ్వతంగా భద్రపరచబడవు.'
+            : 'For patient safety and confidentiality, CareBridge AI stores care plans in your current browser memory only. No medical documents are saved permanently to public cloud databases. You can download your plans or clear history at any time.'}
         </div>
       </div>
 
@@ -104,9 +111,9 @@ export const MyCarePlansPage: React.FC<MyCarePlansPageProps> = ({
             <FolderClock className="w-8 h-8" />
           </div>
           <div>
-            <h3 className="text-base font-bold text-slate-900">No care plans in this session yet</h3>
+            <h3 className="text-base font-bold text-slate-900">{ui.history.emptyTitle}</h3>
             <p className="text-xs text-slate-500 mt-1">
-              Upload a discharge summary or try a sample case to generate your first simple care plan.
+              {ui.history.emptyDesc}
             </p>
           </div>
           <button
@@ -114,7 +121,7 @@ export const MyCarePlansPage: React.FC<MyCarePlansPageProps> = ({
             className="px-6 py-2.5 bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs rounded-xl shadow-xs transition inline-flex items-center space-x-1.5"
           >
             <Plus className="w-4 h-4" />
-            <span>Create Care Plan Now</span>
+            <span>{ui.history.createFirst}</span>
           </button>
         </div>
       ) : (
@@ -139,7 +146,7 @@ export const MyCarePlansPage: React.FC<MyCarePlansPageProps> = ({
                           : 'bg-rose-100 text-rose-800'
                       }`}
                     >
-                      {isVerified ? 'Checks Passed' : 'Needs Review'}
+                      {isVerified ? ui.common.verified : ui.common.needsReview}
                     </span>
                   </div>
 
@@ -149,7 +156,7 @@ export const MyCarePlansPage: React.FC<MyCarePlansPageProps> = ({
                       <span>{new Date(item.timestamp).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}</span>
                     </span>
                     <span>•</span>
-                    <span>{item.facts.medications.length} {item.facts.medications.length === 1 ? 'Medication' : 'Medications'}</span>
+                    <span>{item.facts.medications.length} {ui.history.activeMeds}</span>
                     <span>•</span>
                     <span>Source: {item.sourceType}</span>
                     <span>•</span>
@@ -164,7 +171,7 @@ export const MyCarePlansPage: React.FC<MyCarePlansPageProps> = ({
                     className="px-3.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl shadow-xs transition flex items-center space-x-1"
                   >
                     <Eye className="w-3.5 h-3.5" />
-                    <span>View Plan</span>
+                    <span>{ui.history.viewPlan}</span>
                   </button>
 
                   <button

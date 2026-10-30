@@ -1,46 +1,51 @@
 import React from 'react';
 import { X, HelpCircle, FileText, CheckCircle2, AlertTriangle, Printer, Lock, Languages, ShieldCheck } from 'lucide-react';
+import { LanguageCode } from '../types/careplan';
+import { getUiStrings } from '../utils/uiTranslations';
 
 interface HelpModalProps {
   onClose: () => void;
+  interfaceLanguage?: LanguageCode;
 }
 
-export const HelpModal: React.FC<HelpModalProps> = ({ onClose }) => {
+export const HelpModal: React.FC<HelpModalProps> = ({ onClose, interfaceLanguage = 'en' }) => {
+  const ui = getUiStrings(interfaceLanguage);
+
   const faqs = [
     {
       icon: <FileText className="w-5 h-5 text-teal-600" />,
-      question: 'How do I upload a hospital discharge summary?',
-      answer: 'Go to "Create Care Plan" and choose either "Upload Discharge Summary" to drop a PDF or text file (up to 10MB), or "Enter Instructions Manually" to paste text directly. You can also explore our built-in sample cases.',
+      question: ui.help.q1,
+      answer: ui.help.a1,
     },
     {
       icon: <FileText className="w-5 h-5 text-teal-600" />,
-      question: 'Which document formats are supported?',
-      answer: 'We support text-based PDF documents (.pdf), plain text files (.txt), and Markdown files (.md). If you have a scanned image PDF, we recommend copying and pasting the text into the manual entry box.',
+      question: ui.help.q2,
+      answer: ui.help.a2,
     },
     {
       icon: <Languages className="w-5 h-5 text-teal-600" />,
-      question: 'How does the English and Telugu language selector work?',
-      answer: 'CareBridge AI translates instructions into natural, easy-to-understand conversational Telugu while preserving clinical medication brand names, numerical strengths (e.g. 500 mg), and schedules. You can toggle between English and Telugu anytime.',
+      question: ui.help.q3,
+      answer: ui.help.a3,
     },
     {
       icon: <ShieldCheck className="w-5 h-5 text-emerald-600" />,
-      question: 'What does "Checks Passed" vs "Needs Review" mean?',
-      answer: '"Checks Passed" indicates all 12+ deterministic safety tests confirmed exact consistency with your discharge summary. "Needs Review" indicates an ambiguity, missing detail (such as an unstated stop date), or conflicting instruction was found in the hospital record.',
+      question: ui.help.q4,
+      answer: ui.help.a4,
     },
     {
       icon: <AlertTriangle className="w-5 h-5 text-amber-600" />,
-      question: 'What should I do if my care plan says "Needs Review"?',
-      answer: 'Do not panic. "Needs Review" protects your safety by highlighting missing or unclear items. We provide a list of specific clarification questions for you to confirm with your doctor, pharmacist, or hospital care team before taking medications.',
+      question: ui.help.q5,
+      answer: ui.help.a5,
     },
     {
       icon: <Printer className="w-5 h-5 text-teal-600" />,
-      question: 'How do I print or download my care plan?',
-      answer: 'In the care plan view, click "Print Care Sheet" or "Download PDF". We provide a clean, clutter-free A4 printable sheet designed for you or your caregiver to keep on the refrigerator or bedside table.',
+      question: ui.help.q6,
+      answer: ui.help.a6,
     },
     {
       icon: <Lock className="w-5 h-5 text-teal-600" />,
-      question: 'How is my medical document privacy handled?',
-      answer: 'CareBridge AI processes documents in-memory during your session. No medical documents or protected health information (PHI) are permanently saved on our servers. You can clear session records at any time with one click.',
+      question: ui.help.q7,
+      answer: ui.help.a7,
     },
   ];
 
@@ -53,9 +58,9 @@ export const HelpModal: React.FC<HelpModalProps> = ({ onClose }) => {
               <HelpCircle className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-lg font-bold text-slate-900">Help & Patient Support</h3>
+              <h3 className="text-lg font-bold text-slate-900">{ui.help.title}</h3>
               <p className="text-xs text-slate-500">
-                Clear answers on using CareBridge AI and understanding your care plan
+                {ui.help.subtitle}
               </p>
             </div>
           </div>
@@ -85,12 +90,12 @@ export const HelpModal: React.FC<HelpModalProps> = ({ onClose }) => {
 
         {/* Safety Notice Footer */}
         <div className="mt-6 pt-4 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-500">
-          <span>Always confirm unclear instructions with your hospital or pharmacy care team.</span>
+          <span>{interfaceLanguage === 'te' ? 'అస్పష్టమైన సూచనలను ఎల్లప్పుడూ మీ ఆసుపత్రి లేదా ఫార్మసీ వైద్య బృందంతో నిర్ధారించుకోండి.' : 'Always confirm unclear instructions with your hospital or pharmacy care team.'}</span>
           <button
             onClick={onClose}
             className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl shadow-xs transition w-full sm:w-auto"
           >
-            Close Help
+            {ui.help.close}
           </button>
         </div>
       </div>

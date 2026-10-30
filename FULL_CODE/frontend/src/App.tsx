@@ -15,12 +15,30 @@ import { generatePatientCarePlan } from './core/generator';
 import { validateCarePlanFaithfulness } from './core/validator';
 import { SAMPLE_CASES } from './data/sampleSummaries';
 import { CareBridgeResult, LanguageCode, ProcessingMode, PatientCarePlan, FaithfulnessReport } from './types/careplan';
+import { getUiStrings } from './utils/uiTranslations';
 
 export function App() {
   const [currentView, setCurrentView] = useState<NavView>('home');
-  const [interfaceLanguage, setInterfaceLanguage] = useState<LanguageCode>('en');
+  const [interfaceLanguage, setInterfaceLanguage] = useState<LanguageCode>(() => {
+    try {
+      const saved = localStorage.getItem('carebridge_interface_lang');
+      if (saved === 'te' || saved === 'en') return saved;
+    } catch {
+      // LocalStorage fallback
+    }
+    return 'en';
+  });
   const [processingMode, setProcessingMode] = useState<ProcessingMode>('DEMO');
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
+
+  const handleLanguageToggle = (lang: LanguageCode) => {
+    setInterfaceLanguage(lang);
+    try {
+      localStorage.setItem('carebridge_interface_lang', lang);
+    } catch {
+      // ignore
+    }
+  };
 
   // Modals
   const [showPrintModal, setShowPrintModal] = useState<boolean>(false);
@@ -175,6 +193,8 @@ export function App() {
     setResult(null);
   };
 
+  const ui = getUiStrings(interfaceLanguage);
+
   return (
     <div className="min-h-screen bg-slate-50/80 text-slate-900 flex flex-col font-sans antialiased">
       {/* Redesigned Navigation */}
@@ -182,7 +202,7 @@ export function App() {
         currentView={currentView}
         onNavigate={setCurrentView}
         interfaceLanguage={interfaceLanguage}
-        onLanguageToggle={setInterfaceLanguage}
+        onLanguageToggle={handleLanguageToggle}
         mode={processingMode}
         onOpenPrint={() => setShowPrintModal(true)}
         onOpenHelp={() => setShowHelpModal(true)}
@@ -206,6 +226,8 @@ export function App() {
           <WorkflowWizard
             initialText={result ? result.sourceText : SAMPLE_CASES[0].sourceText}
             initialLanguage={interfaceLanguage}
+            interfaceLanguage={interfaceLanguage}
+            onLanguageChange={handleLanguageToggle}
             onProcess={processDischargeSummary}
             isProcessing={isProcessing}
             result={result}
@@ -226,18 +248,21 @@ export function App() {
             onDeletePlan={handleDeletePlanFromHistory}
             onClearAll={handleClearAllHistory}
             onNavigateCreate={() => setCurrentView('create')}
+            interfaceLanguage={interfaceLanguage}
           />
         )}
 
         {currentView === 'how-it-works' && (
           <HowItWorksPage
             onStartCreate={() => setCurrentView('create')}
+            interfaceLanguage={interfaceLanguage}
           />
         )}
 
         {currentView === 'about' && (
           <AboutPage
             onStartCreate={() => setCurrentView('create')}
+            interfaceLanguage={interfaceLanguage}
           />
         )}
       </main>
@@ -255,7 +280,10 @@ export function App() {
 
       {/* Help Modal */}
       {showHelpModal && (
-        <HelpModal onClose={() => setShowHelpModal(false)} />
+        <HelpModal 
+          onClose={() => setShowHelpModal(false)} 
+          interfaceLanguage={interfaceLanguage}
+        />
       )}
 
       {/* Privacy Modal */}
@@ -279,19 +307,27 @@ export function App() {
             </div>
 
             <div className="flex items-center space-x-6 text-slate-600 font-semibold">
-              <button onClick={() => setCurrentView('how-it-works')} className="hover:text-teal-700 transition">How It Works</button>
-              <button onClick={() => setCurrentView('about')} className="hover:text-teal-700 transition">About</button>
-              <button onClick={() => setShowHelpModal(true)} className="hover:text-teal-700 transition">Help & FAQs</button>
-              <button onClick={() => setShowPrivacyModal(true)} className="hover:text-teal-700 transition">Privacy & Security</button>
+              <button onClick={() => setCurrentView('how-it-works')} className="hover:text-teal-700 transition">
+                {ui.footer.howItWorks}
+              </button>
+              <button onClick={() => setCurrentView('about')} className="hover:text-teal-700 transition">
+                {ui.footer.about}
+              </button>
+              <button onClick={() => setShowHelpModal(true)} className="hover:text-teal-700 transition">
+                {ui.footer.help}
+              </button>
+              <button onClick={() => setShowPrivacyModal(true)} className="hover:text-teal-700 transition">
+                {ui.footer.privacy}
+              </button>
             </div>
           </div>
 
           <div className="pt-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-slate-400 text-[11px]">
             <p>
-              © 2026 CareBridge AI. Built for clinical safety and patient empowerment. Synthetic data demonstration.
+              {ui.footer.copy}
             </p>
             <p>
-              Always confirm medication and follow-up instructions with your attending physician or pharmacist.
+              {ui.footer.disclaimer}
             </p>
           </div>
         </div>

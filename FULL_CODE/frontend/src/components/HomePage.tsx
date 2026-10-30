@@ -6,16 +6,10 @@ import {
   Printer, 
   ShieldCheck, 
   Heart, 
-  Sparkles, 
   CheckCircle, 
-  AlertCircle, 
-  HelpCircle,
-  Languages,
-  Clock,
-  Pill,
-  Calendar
 } from 'lucide-react';
 import { LanguageCode } from '../types/careplan';
+import { getUiStrings } from '../utils/uiTranslations';
 
 interface HomePageProps {
   onStartCreate: () => void;
@@ -27,10 +21,9 @@ interface HomePageProps {
 export const HomePage: React.FC<HomePageProps> = ({
   onStartCreate,
   onTrySample,
-  onNavigateHowItWorks,
   interfaceLanguage,
 }) => {
-  const isTe = interfaceLanguage === 'te';
+  const t = getUiStrings(interfaceLanguage).home;
 
   return (
     <div className="space-y-16 py-6 sm:py-10">
@@ -39,21 +32,17 @@ export const HomePage: React.FC<HomePageProps> = ({
         {/* Subtle Category Pill */}
         <div className="inline-flex items-center space-x-2 px-3 py-1.5 rounded-full bg-teal-50 border border-teal-200 text-teal-800 text-xs font-bold mb-6 shadow-2xs">
           <Heart className="w-3.5 h-3.5 text-teal-600 fill-teal-600" />
-          <span>{isTe ? 'రోగుల మరియు సంరక్షకుల మార్గదర్శి' : 'Patient-Centered Discharge Care Assistant'}</span>
+          <span>{t.category}</span>
         </div>
 
         {/* Main Heading */}
         <h1 className="text-3xl sm:text-5xl font-black tracking-tight text-slate-900 leading-tight mb-5">
-          {isTe 
-            ? 'మీ చికిత్సను అర్థం చేసుకోండి. ఇంట్లో మరింత నమ్మకంగా కోలుకోండి.'
-            : 'Understand Your Care. Feel More Confident at Home.'}
+          {t.heroTitle}
         </h1>
 
         {/* Supporting text */}
         <p className="text-base sm:text-xl text-slate-600 max-w-2xl mx-auto leading-relaxed mb-8 font-normal">
-          {isTe
-            ? 'క్లిష్టమైన ఆసుపత్రి డిశ్చార్జ్ సూచనలను మీ ప్రాధాన్యత భాషలో సరళమైన, సులభంగా అర్థమయ్యే సంరక్షణ ప్రణాళికగా మార్చండి.'
-            : 'Turn complicated hospital discharge instructions into simple, easy-to-understand care plans in your preferred language.'}
+          {t.heroSubtitle}
         </p>
 
         {/* Primary and Secondary CTA Buttons */}
@@ -62,7 +51,7 @@ export const HomePage: React.FC<HomePageProps> = ({
             onClick={onStartCreate}
             className="w-full sm:w-auto px-8 py-4 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-extrabold text-base shadow-md hover:shadow-lg transition duration-200 flex items-center justify-center space-x-2 group focus:ring-2 focus:ring-teal-400 focus:outline-hidden"
           >
-            <span>{isTe ? 'నా సంరక్షణ ప్రణాళికను సృష్టించండి' : 'Create My Care Plan'}</span>
+            <span>{t.ctaCreate}</span>
             <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition" />
           </button>
 
@@ -70,12 +59,12 @@ export const HomePage: React.FC<HomePageProps> = ({
             onClick={onTrySample}
             className="w-full sm:w-auto px-7 py-4 rounded-xl bg-white hover:bg-slate-50 text-slate-800 font-bold text-base border border-slate-300 shadow-2xs transition hover:border-slate-400 flex items-center justify-center space-x-2 focus:ring-2 focus:ring-slate-300 focus:outline-hidden"
           >
-            <span>{isTe ? 'నమూనా ప్లాన్ చూడండి' : 'Try a Sample Care Plan'}</span>
+            <span>{t.ctaSample}</span>
           </button>
         </div>
 
         <p className="text-xs text-slate-400 mt-4">
-          {isTe ? 'ఉచితంగా ఉపయోగించండి • లాగిన్ అవసరం లేదు • సురక్షితమైన సెషన్ ప్రాసెసింగ్' : 'Free to use • No account required • In-memory privacy preservation'}
+          {t.trustPill}
         </p>
       </section>
 
@@ -83,10 +72,10 @@ export const HomePage: React.FC<HomePageProps> = ({
       <section className="max-w-5xl mx-auto px-4">
         <div className="text-center mb-10">
           <h2 className="text-xs font-bold uppercase tracking-wider text-teal-700 mb-1">
-            {isTe ? 'మూడు సులభమైన దశలు' : 'How It Works in 3 Simple Steps'}
+            {t.howTitle}
           </h2>
           <h3 className="text-2xl font-bold text-slate-900">
-            {isTe ? 'ఆసుపత్రి నుండి ఇంటికి సులభమైన ప్రయాణం' : 'From Hospital Discharge to Confident Home Recovery'}
+            {t.howSubtitle}
           </h3>
         </div>
 
@@ -98,17 +87,15 @@ export const HomePage: React.FC<HomePageProps> = ({
                 1
               </div>
               <h4 className="text-base font-bold text-slate-900 mb-2">
-                {isTe ? '1. మీ డిశ్చార్జ్ సారాంశాన్ని అప్‌లోడ్ చేయండి' : '1. Upload your discharge summary.'}
+                {t.step1Title}
               </h4>
               <p className="text-xs text-slate-600 leading-relaxed">
-                {isTe
-                  ? 'మీ ఆసుపత్రి ఇచ్చిన పత్రాలను PDF రూపంలో అప్‌లోడ్ చేయండి లేదా సూచనలను నేరుగా కాపీ చేసి పేస్ట్ చేయండి.'
-                  : 'Upload your hospital summary as a PDF, text document, or paste the text directly into our clean document workspace.'}
+                {t.step1Desc}
               </p>
             </div>
             <div className="mt-6 pt-4 border-t border-slate-100 flex items-center text-xs text-teal-700 font-semibold space-x-1.5">
               <FileUp className="w-4 h-4" />
-              <span>{isTe ? 'PDF లేదా టెక్స్ట్ పత్రాలు' : 'PDF, TXT, or manual text'}</span>
+              <span>{t.step1Badge}</span>
             </div>
           </div>
 
@@ -119,17 +106,15 @@ export const HomePage: React.FC<HomePageProps> = ({
                 2
               </div>
               <h4 className="text-base font-bold text-slate-900 mb-2">
-                {isTe ? '2. సులభమైన సూచనలను సమీక్షించండి' : '2. Review your simplified care instructions.'}
+                {t.step2Title}
               </h4>
               <p className="text-xs text-slate-600 leading-relaxed">
-                {isTe
-                  ? 'మందులు, మోతాదులు, ఆహార నియమాలు మరియు అత్యవసర హెచ్చరికలను సరళమైన ఆంగ్లంలో లేదా సహజమైన తెలుగులో చదవండి.'
-                  : 'Read clear medication schedules, daily home care, food instructions, and warning signs in plain English or natural Telugu.'}
+                {t.step2Desc}
               </p>
             </div>
             <div className="mt-6 pt-4 border-t border-slate-100 flex items-center text-xs text-teal-700 font-semibold space-x-1.5">
               <FileCheck2 className="w-4 h-4" />
-              <span>{isTe ? '8వ తరగతి చదువు శైలి' : 'Class 8 plain-language reading'}</span>
+              <span>{t.step2Badge}</span>
             </div>
           </div>
 
@@ -140,17 +125,15 @@ export const HomePage: React.FC<HomePageProps> = ({
                 3
               </div>
               <h4 className="text-base font-bold text-slate-900 mb-2">
-                {isTe ? '3. కేర్ ప్లాన్‌ను డౌన్‌లోడ్ చేసి ఉంచుకోండి' : '3. Download and keep your care plan.'}
+                {t.step3Title}
               </h4>
               <p className="text-xs text-slate-600 leading-relaxed">
-                {isTe
-                  ? 'మీ కోసం లేదా మీ సంరక్షకుల కోసం ఒక-పేజీ ప్రింట్ షీట్‌ను ప్రింట్ చేసుకోండి లేదా PDF రూపంలో సేవ్ చేయండి.'
-                  : 'Print a clean, single-page care sheet or download as PDF for your home refrigerator, caregiver, or bedside table.'}
+                {t.step3Desc}
               </p>
             </div>
             <div className="mt-6 pt-4 border-t border-slate-100 flex items-center text-xs text-teal-700 font-semibold space-x-1.5">
               <Printer className="w-4 h-4" />
-              <span>{isTe ? '1-పేజీ ప్రింట్ మరియు PDF' : '1-page print or save as PDF'}</span>
+              <span>{t.step3Badge}</span>
             </div>
           </div>
         </div>
@@ -165,10 +148,10 @@ export const HomePage: React.FC<HomePageProps> = ({
             </div>
             <div>
               <h4 className="text-base sm:text-lg font-bold text-white mb-1.5">
-                {isTe ? 'మా విశ్వసనీయత మరియు భద్రతా సూత్రం' : 'Our Source-of-Truth Safety Promise'}
+                {t.safetyTitle}
               </h4>
               <p className="text-sm text-slate-300 leading-relaxed">
-                "Your original medical instructions remain our source of truth. Important details are checked, and unclear information is flagged for review."
+                {t.safetyDesc}
               </p>
             </div>
           </div>
@@ -176,15 +159,15 @@ export const HomePage: React.FC<HomePageProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-6 pt-5 border-t border-slate-800 text-xs">
             <div className="flex items-center space-x-2 text-slate-300">
               <CheckCircle className="w-4 h-4 text-teal-400 shrink-0" />
-              <span>Zero invented medications</span>
+              <span>{t.safety1}</span>
             </div>
             <div className="flex items-center space-x-2 text-slate-300">
               <CheckCircle className="w-4 h-4 text-teal-400 shrink-0" />
-              <span>Exact doses and units verified</span>
+              <span>{t.safety2}</span>
             </div>
             <div className="flex items-center space-x-2 text-slate-300">
               <CheckCircle className="w-4 h-4 text-teal-400 shrink-0" />
-              <span>Ambiguities flagged for doctor review</span>
+              <span>{t.safety3}</span>
             </div>
           </div>
         </div>
@@ -193,8 +176,8 @@ export const HomePage: React.FC<HomePageProps> = ({
       {/* 4. Healthcare Notice */}
       <section className="max-w-3xl mx-auto px-4 text-center">
         <div className="p-4 rounded-xl bg-slate-100 border border-slate-200 text-xs text-slate-600 leading-relaxed">
-          <strong className="text-slate-800 font-semibold">Important Clinical Notice: </strong>
-          CareBridge AI helps explain discharge instructions. It does not replace your doctor, pharmacist, or healthcare team. Confirm unclear instructions directly with them.
+          <strong className="text-slate-800 font-semibold">{t.clinicalNoticeLabel} </strong>
+          {t.clinicalNoticeText}
         </div>
       </section>
     </div>

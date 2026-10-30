@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import { SAMPLE_CASES, SampleCase } from '../data/sampleSummaries';
 import { CareBridgeResult, LanguageCode, PatientCarePlan, FaithfulnessReport } from '../types/careplan';
+import { getUiStrings } from '../utils/uiTranslations';
 
 import { MedicationTable } from './MedicationTable';
 import { CarePlanCards } from './CarePlanCards';
@@ -42,6 +43,8 @@ import { DriftControlBar } from './DriftControlBar';
 interface WorkflowWizardProps {
   initialText?: string;
   initialLanguage?: LanguageCode;
+  interfaceLanguage?: LanguageCode;
+  onLanguageChange?: (lang: LanguageCode) => void;
   onProcess: (text: string, language: LanguageCode, sourceType: 'SYNTHETIC_DEMO' | 'PASTED' | 'UPLOADED', documentName?: string) => Promise<void>;
   isProcessing: boolean;
   result: CareBridgeResult | null;
@@ -58,6 +61,8 @@ interface WorkflowWizardProps {
 export const WorkflowWizard: React.FC<WorkflowWizardProps> = ({
   initialText = '',
   initialLanguage = 'en',
+  interfaceLanguage,
+  onLanguageChange,
   onProcess,
   isProcessing,
   result,
@@ -78,21 +83,38 @@ export const WorkflowWizard: React.FC<WorkflowWizardProps> = ({
   const [selectedFileName, setSelectedFileName] = useState<string>('sample-surgical-recovery.txt');
   const [fileError, setFileError] = useState<string | null>(null);
   const [isExtractingPdf, setIsExtractingPdf] = useState<boolean>(false);
-  const [selectedLanguage, setSelectedLanguage] = useState<LanguageCode>(initialLanguage);
+  const [selectedLanguage, setSelectedLanguage] = useState<LanguageCode>(interfaceLanguage || initialLanguage);
   const [sourceType, setSourceType] = useState<'SYNTHETIC_DEMO' | 'PASTED' | 'UPLOADED'>('SYNTHETIC_DEMO');
 
   // Presentation view in Step 4: Patient View vs Professional Review View
   const [viewLevel, setViewLevel] = useState<'patient' | 'professional'>('patient');
   const [resultsTab, setResultsTab] = useState<'plan' | 'timetable' | 'bilingual' | 'audit' | 'source' | 'print'>('plan');
 
+  // Localized UI strings
+  const ui = getUiStrings(selectedLanguage);
+
+  // Sync selected language when interfaceLanguage updates
+  useEffect(() => {
+    if (interfaceLanguage && interfaceLanguage !== selectedLanguage) {
+      setSelectedLanguage(interfaceLanguage);
+    }
+  }, [interfaceLanguage]);
+
+  const handleSelectLanguage = (lang: LanguageCode) => {
+    setSelectedLanguage(lang);
+    if (onLanguageChange) {
+      onLanguageChange(lang);
+    }
+  };
+
   // Processing stage progression animation
   const [processingStage, setProcessingStage] = useState<number>(1);
   const stages = [
-    '1. Reading document & disarming untrusted content...',
-    '2. Extracting medical instructions with zero guessing...',
-    '3. Simplifying language to Class 8 readability...',
-    '4. Checking important details against source summary...',
-    '5. Preparing your final structured care plan...'
+    ui.wizard.stage1,
+    ui.wizard.stage2,
+    ui.wizard.stage3,
+    ui.wizard.stage4,
+    ui.wizard.stage5,
   ];
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -227,10 +249,10 @@ export const WorkflowWizard: React.FC<WorkflowWizardProps> = ({
       <div className="no-print bg-white rounded-2xl border border-slate-200/90 p-4 sm:p-5 shadow-2xs">
         <div className="flex items-center justify-between max-w-3xl mx-auto">
           {[
-            { step: 1, label: '1. Document' },
-            { step: 2, label: '2. Language' },
-            { step: 3, label: '3. Review' },
-            { step: 4, label: '4. Care Plan' },
+            { step: 1, label: selectedLanguage === 'te' ? '1. పత్రం' : '1. Document' },
+            { step: 2, label: selectedLanguage === 'te' ? '2. భాష' : '2. Language' },
+            { step: 3, label: selectedLanguage === 'te' ? '3. సమీక్ష' : '3. Review' },
+            { step: 4, label: selectedLanguage === 'te' ? '4. కేర్ ప్లాన్' : '4. Care Plan' },
           ].map((item, idx) => {
             const isCompleted = currentStep > item.step;
             const isCurrent = currentStep === item.step;
@@ -281,10 +303,10 @@ export const WorkflowWizard: React.FC<WorkflowWizardProps> = ({
         <div className="space-y-6">
           <div className="text-center max-w-2xl mx-auto">
             <h2 className="text-2xl font-black text-slate-900 tracking-tight">
-              Step 1: Provide Your Discharge Summary
+              {ui.wizard.step1Title}
             </h2>
             <p className="text-sm text-slate-600 mt-1">
-              Upload your hospital papers, paste text directly, or test with our curated clinical examples.
+              {ui.wizard.step1Desc}
             </p>
           </div>
 
@@ -301,7 +323,7 @@ export const WorkflowWizard: React.FC<WorkflowWizardProps> = ({
                 }`}
               >
                 <FileUp className="w-4 h-4" />
-                <span>Upload Document (PDF / TXT)</span>
+                <span>{ui.wizard.uploadTab}</span>
               </button>
               <button
                 type="button"
@@ -313,7 +335,7 @@ export const WorkflowWizard: React.FC<WorkflowWizardProps> = ({
                 }`}
               >
                 <FileText className="w-4 h-4" />
-                <span>Enter Instructions Manually</span>
+                <span>{ui.wizard.manualTab}</span>
               </button>
             </div>
           </div>
@@ -347,16 +369,16 @@ export const WorkflowWizard: React.FC<WorkflowWizardProps> = ({
                     )}
                   </div>
                   <h3 className="text-base font-bold text-slate-900">
-                    {isExtractingPdf ? 'Extracting clean text from PDF...' : 'Click to Browse or Drag & Drop Discharge Summary'}
+                    {isExtractingPdf ? ui.wizard.extractingPdf : ui.wizard.dragDrop}
                   </h3>
                   <p className="text-xs text-slate-500 mt-1 max-w-md mx-auto">
-                    Supported formats: PDF, TXT, Markdown (Max size: 10MB)
+                    {ui.wizard.supportedFormats}
                   </p>
                   <button
                     type="button"
                     className="mt-4 px-5 py-2 rounded-xl bg-slate-900 text-white font-bold text-xs hover:bg-slate-800 transition shadow-xs"
                   >
-                    Browse Files on Computer
+                    {ui.wizard.browseFiles}
                   </button>
                 </div>
               ) : (
@@ -366,11 +388,11 @@ export const WorkflowWizard: React.FC<WorkflowWizardProps> = ({
                   </div>
                   <div>
                     <span className="text-[10px] font-bold uppercase tracking-wider text-teal-700 bg-teal-50 px-2 py-0.5 rounded border border-teal-200">
-                      Document Ready
+                      {ui.wizard.documentReady}
                     </span>
                     <h3 className="text-sm font-bold text-slate-900 mt-1">{selectedFileName}</h3>
                     <p className="text-xs text-slate-500">
-                      {documentText.length} characters • {documentText.split(/\s+/).filter(Boolean).length} words extracted
+                      {documentText.length} {ui.wizard.characters} • {documentText.split(/\s+/).filter(Boolean).length} {ui.wizard.wordsExtracted}
                     </p>
                   </div>
                   <div className="flex justify-center space-x-3 pt-2">
@@ -379,7 +401,7 @@ export const WorkflowWizard: React.FC<WorkflowWizardProps> = ({
                       onClick={() => fileInputRef.current?.click()}
                       className="px-3.5 py-1.5 rounded-lg border border-slate-300 text-slate-700 text-xs font-semibold hover:bg-slate-50 transition"
                     >
-                      Replace File
+                      {ui.common.replace}
                     </button>
                     <button
                       type="button"
@@ -387,7 +409,7 @@ export const WorkflowWizard: React.FC<WorkflowWizardProps> = ({
                       className="px-3.5 py-1.5 rounded-lg border border-rose-200 text-rose-700 text-xs font-semibold hover:bg-rose-50 transition flex items-center space-x-1"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
-                      <span>Remove</span>
+                      <span>{ui.common.remove}</span>
                     </button>
                   </div>
                 </div>
@@ -399,7 +421,7 @@ export const WorkflowWizard: React.FC<WorkflowWizardProps> = ({
           {inputOption === 'manual' && (
             <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-2xs max-w-2xl mx-auto">
               <label htmlFor="manual-instructions" className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
-                Paste Your Hospital Discharge Summary:
+                {ui.wizard.pasteLabel}
               </label>
               <textarea
                 id="manual-instructions"
@@ -411,12 +433,12 @@ export const WorkflowWizard: React.FC<WorkflowWizardProps> = ({
                   setSourceType('PASTED');
                   setFileError(null);
                 }}
-                placeholder="Include medications, doses, follow-up advice, wound care, and warning signs as written on your hospital paperwork..."
+                placeholder={ui.wizard.pastePlaceholder}
                 className="w-full p-4 text-xs font-mono bg-slate-50/70 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 focus:bg-white text-slate-800 leading-relaxed"
               />
               <div className="flex items-center justify-between text-[11px] text-slate-500 mt-2">
-                <span>Provide as much detail as written on your hospital paper.</span>
-                <span>{documentText.split(/\s+/).filter(Boolean).length} words</span>
+                <span>{ui.wizard.pasteHint}</span>
+                <span>{documentText.split(/\s+/).filter(Boolean).length} {ui.wizard.words}</span>
               </div>
             </div>
           )}
@@ -425,7 +447,7 @@ export const WorkflowWizard: React.FC<WorkflowWizardProps> = ({
           <div className="max-w-2xl mx-auto pt-2">
             <div className="flex items-center justify-between mb-2.5">
               <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-                Or Try A Medically Curated Example:
+                {ui.wizard.sampleLabel}
               </span>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
@@ -463,7 +485,7 @@ export const WorkflowWizard: React.FC<WorkflowWizardProps> = ({
               }}
               className="px-6 py-3 rounded-xl bg-teal-600 hover:bg-teal-700 disabled:opacity-50 text-white font-bold text-sm shadow-sm transition flex items-center space-x-2"
             >
-              <span>Continue to Language Selection</span>
+              <span>{ui.wizard.nextChooseLang}</span>
               <ChevronRight className="w-4 h-4" />
             </button>
           </div>
@@ -477,17 +499,17 @@ export const WorkflowWizard: React.FC<WorkflowWizardProps> = ({
         <div className="space-y-6 max-w-2xl mx-auto">
           <div className="text-center">
             <h2 className="text-2xl font-black text-slate-900 tracking-tight">
-              Step 2: Choose Your Patient Language
+              {ui.wizard.step2Title}
             </h2>
             <p className="text-sm text-slate-600 mt-1">
-              Select the language for your simplified instructions.
+              {ui.wizard.step2Desc}
             </p>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {/* English Card */}
             <div
-              onClick={() => setSelectedLanguage('en')}
+              onClick={() => handleSelectLanguage('en')}
               className={`p-6 rounded-2xl border-2 cursor-pointer transition flex flex-col justify-between ${
                 selectedLanguage === 'en'
                   ? 'border-teal-600 bg-teal-50/40 shadow-xs ring-1 ring-teal-600'
@@ -501,9 +523,9 @@ export const WorkflowWizard: React.FC<WorkflowWizardProps> = ({
                   </span>
                   {selectedLanguage === 'en' && <CheckCircle2 className="w-6 h-6 text-teal-600" />}
                 </div>
-                <h3 className="text-base font-bold text-slate-900">English</h3>
+                <h3 className="text-base font-bold text-slate-900">{ui.wizard.enTitle}</h3>
                 <p className="text-xs text-slate-600 mt-1 leading-relaxed">
-                  Clear, conversational English at approximately Class 8 readability. Uses short sentences, familiar terms, and numbered steps.
+                  {ui.wizard.enDesc}
                 </p>
               </div>
               <div className="mt-4 pt-3 border-t border-slate-200 text-[11px] text-teal-800 font-semibold">
@@ -513,7 +535,7 @@ export const WorkflowWizard: React.FC<WorkflowWizardProps> = ({
 
             {/* Telugu Card */}
             <div
-              onClick={() => setSelectedLanguage('te')}
+              onClick={() => handleSelectLanguage('te')}
               className={`p-6 rounded-2xl border-2 cursor-pointer transition flex flex-col justify-between ${
                 selectedLanguage === 'te'
                   ? 'border-teal-600 bg-teal-50/40 shadow-xs ring-1 ring-teal-600'
@@ -527,9 +549,9 @@ export const WorkflowWizard: React.FC<WorkflowWizardProps> = ({
                   </span>
                   {selectedLanguage === 'te' && <CheckCircle2 className="w-6 h-6 text-teal-600" />}
                 </div>
-                <h3 className="text-base font-bold text-slate-900">తెలుగు (Telugu)</h3>
+                <h3 className="text-base font-bold text-slate-900">{ui.wizard.teTitle}</h3>
                 <p className="text-xs text-slate-600 mt-1 leading-relaxed">
-                  సహజమైన సంభాషణ శైలి. మందుల పేర్లు, సంఖ్యా మోతాదులు మరియు అత్యవసర హెచ్చరికలను ఖచ్చితంగా సంరక్షిస్తుంది.
+                  {ui.wizard.teDesc}
                 </p>
               </div>
               <div className="mt-4 pt-3 border-t border-slate-200 text-[11px] text-teal-800 font-semibold">
@@ -540,8 +562,8 @@ export const WorkflowWizard: React.FC<WorkflowWizardProps> = ({
 
           {/* Clinical preservation note */}
           <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-600 leading-relaxed">
-            <strong className="text-slate-800 font-semibold">Source Retention Notice: </strong>
-            Whichever language you select, your original hospital instructions are always retained and displayed side-by-side for clinical comparison. Translation simplified language does not alter medication dosages or stop dates.
+            <strong className="text-slate-800 font-semibold">{ui.wizard.retentionNoticeLabel} </strong>
+            {ui.wizard.retentionNoticeText}
           </div>
 
           {/* Stepper Navigation */}
@@ -552,7 +574,7 @@ export const WorkflowWizard: React.FC<WorkflowWizardProps> = ({
               className="px-5 py-2.5 rounded-xl border border-slate-300 text-slate-700 font-bold text-xs hover:bg-slate-50 transition flex items-center space-x-1.5"
             >
               <ChevronLeft className="w-4 h-4" />
-              <span>Back to Document</span>
+              <span>{ui.wizard.backToDoc}</span>
             </button>
 
             <button
@@ -560,7 +582,7 @@ export const WorkflowWizard: React.FC<WorkflowWizardProps> = ({
               onClick={() => setCurrentStep(3)}
               className="px-6 py-3 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-sm shadow-sm transition flex items-center space-x-2"
             >
-              <span>Continue to Review</span>
+              <span>{ui.wizard.continueToReview}</span>
               <ChevronRight className="w-4 h-4" />
             </button>
           </div>
@@ -574,30 +596,30 @@ export const WorkflowWizard: React.FC<WorkflowWizardProps> = ({
         <div className="space-y-6 max-w-2xl mx-auto">
           <div className="text-center">
             <h2 className="text-2xl font-black text-slate-900 tracking-tight">
-              Step 3: Review Details & Generate
+              {ui.wizard.step3Title}
             </h2>
             <p className="text-sm text-slate-600 mt-1">
-              Confirm your inputs before our Deterministic Faithfulness Engine audits your care plan.
+              {ui.wizard.step3Desc}
             </p>
           </div>
 
           {/* Review Details Card */}
           <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-2xs space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <span className="text-xs font-bold text-slate-500 uppercase">Input Document</span>
+              <span className="text-xs font-bold text-slate-500 uppercase">{ui.wizard.inputDoc}</span>
               <span className="text-xs font-bold text-slate-900">{selectedFileName || 'Discharge Summary'}</span>
             </div>
 
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <span className="text-xs font-bold text-slate-500 uppercase">Target Language</span>
+              <span className="text-xs font-bold text-slate-500 uppercase">{ui.wizard.targetLang}</span>
               <span className="text-xs font-bold text-teal-800 bg-teal-50 px-2 py-0.5 rounded border border-teal-200">
                 {selectedLanguage === 'te' ? 'తెలుగు (Telugu)' : 'English (Class 8 Plain Language)'}
               </span>
             </div>
 
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <span className="text-xs font-bold text-slate-500 uppercase">Word Count</span>
-              <span className="text-xs font-mono text-slate-700">{documentText.split(/\s+/).filter(Boolean).length} words</span>
+              <span className="text-xs font-bold text-slate-500 uppercase">{ui.wizard.wordCount}</span>
+              <span className="text-xs font-mono text-slate-700">{documentText.split(/\s+/).filter(Boolean).length} {ui.wizard.words}</span>
             </div>
 
             <div>
@@ -611,7 +633,7 @@ export const WorkflowWizard: React.FC<WorkflowWizardProps> = ({
             <div className="p-3 rounded-xl bg-teal-50/50 border border-teal-200 text-xs text-slate-700 flex items-start space-x-2">
               <ShieldCheck className="w-4 h-4 text-teal-700 shrink-0 mt-0.5" />
               <span>
-                <strong>Privacy Guaranteed:</strong> Processed in memory during this session. No medical documents are permanently logged or shared.
+                {ui.wizard.clinicalSafetyNotice}
               </span>
             </div>
           </div>
@@ -625,7 +647,7 @@ export const WorkflowWizard: React.FC<WorkflowWizardProps> = ({
                   {stages[processingStage - 1]}
                 </h3>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Auditing 12+ clinical parameters against source text
+                  Auditing clinical parameters against source text
                 </p>
               </div>
 
@@ -658,7 +680,7 @@ export const WorkflowWizard: React.FC<WorkflowWizardProps> = ({
               className="px-5 py-2.5 rounded-xl border border-slate-300 text-slate-700 font-bold text-xs hover:bg-slate-50 transition flex items-center space-x-1.5"
             >
               <ChevronLeft className="w-4 h-4" />
-              <span>Back</span>
+              <span>{ui.wizard.backBtn}</span>
             </button>
 
             <button
@@ -670,12 +692,12 @@ export const WorkflowWizard: React.FC<WorkflowWizardProps> = ({
               {isProcessing ? (
                 <>
                   <RefreshCw className="w-4 h-4 animate-spin text-white" />
-                  <span>Auditing & Generating...</span>
+                  <span>{ui.wizard.generatingBtn}</span>
                 </>
               ) : (
                 <>
                   <Sparkles className="w-4 h-4 text-teal-200" />
-                  <span>Generate My Care Plan</span>
+                  <span>{ui.wizard.generateBtn}</span>
                   <ChevronRight className="w-4 h-4 text-white" />
                 </>
               )}
@@ -693,13 +715,13 @@ export const WorkflowWizard: React.FC<WorkflowWizardProps> = ({
           <div className="no-print bg-white rounded-2xl border border-slate-200 p-5 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
               <span className="text-[10px] font-bold uppercase tracking-wider text-teal-700 bg-teal-50 px-2.5 py-1 rounded-md border border-teal-200">
-                Care Plan Ready
+                {ui.results.planReadyBadge}
               </span>
               <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight mt-1.5">
-                Your Care Plan Is Ready
+                {ui.results.planReadyTitle}
               </h2>
               <p className="text-xs text-slate-500">
-                Admission reason: <strong>{result.facts.admissionReason || 'Clinical discharge recovery'}</strong> • Language: {activePlan.language === 'te' ? 'తెలుగు (Telugu)' : 'English'}
+                {ui.results.admissionReason} <strong>{result.facts.admissionReason || 'Clinical discharge recovery'}</strong> • {ui.results.languageLabel} {activePlan.language === 'te' ? 'తెలుగు (Telugu)' : 'English'}
               </p>
             </div>
 
@@ -715,7 +737,7 @@ export const WorkflowWizard: React.FC<WorkflowWizardProps> = ({
                 }`}
               >
                 <Eye className="w-3.5 h-3.5" />
-                <span>Patient View</span>
+                <span>{ui.results.patientView}</span>
               </button>
               <button
                 type="button"
@@ -727,7 +749,7 @@ export const WorkflowWizard: React.FC<WorkflowWizardProps> = ({
                 }`}
               >
                 <Stethoscope className="w-3.5 h-3.5" />
-                <span>Professional Review</span>
+                <span>{ui.results.profReview}</span>
               </button>
             </div>
           </div>
@@ -739,13 +761,13 @@ export const WorkflowWizard: React.FC<WorkflowWizardProps> = ({
                 <ShieldCheck className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
                 <div>
                   <div className="flex items-center space-x-2">
-                    <h3 className="text-sm font-bold">Checks Passed: Verified Consistent</h3>
+                    <h3 className="text-sm font-bold">{ui.results.passedTitle}</h3>
                     <span className="text-[10px] font-bold bg-emerald-100 text-emerald-800 px-2 py-0.2 rounded">
-                      {activeReport.passedCount} Checks Verified
+                      {activeReport.passedCount} {ui.results.passedChecksBadge}
                     </span>
                   </div>
                   <p className="text-xs text-emerald-800 mt-0.5">
-                    Your instructions match the original discharge summary. Zero medications omitted, zero unprescribed drugs added.
+                    {ui.results.passedDesc}
                   </p>
                 </div>
               </div>
@@ -754,13 +776,13 @@ export const WorkflowWizard: React.FC<WorkflowWizardProps> = ({
                 <AlertOctagon className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
                 <div>
                   <div className="flex items-center space-x-2">
-                    <h3 className="text-sm font-bold">Needs Review: Discrepancies or Ambiguities Found</h3>
+                    <h3 className="text-sm font-bold">{ui.results.needsReviewTitle}</h3>
                     <span className="text-[10px] font-bold bg-rose-200 text-rose-900 px-2 py-0.2 rounded">
-                      {activeReport.failedCount} Issues Requiring Clarification
+                      {activeReport.failedCount} {ui.results.needsReviewBadge}
                     </span>
                   </div>
                   <p className="text-xs text-rose-900 mt-0.5">
-                    Safety alert: One or more instructions in your hospital papers were incomplete, ambiguous, or altered. Confirm these items with your doctor before taking medications.
+                    {ui.results.needsReviewDesc}
                   </p>
                 </div>
               </div>
@@ -789,12 +811,12 @@ export const WorkflowWizard: React.FC<WorkflowWizardProps> = ({
             </div>
             <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-2xs flex items-center justify-between">
               <div>
-                <span className="text-[10px] font-bold uppercase text-slate-500 block">Readability Standard</span>
+                <span className="text-[10px] font-bold uppercase text-slate-500 block">{ui.results.readabilityStandard}</span>
                 <span className="text-xs font-bold text-slate-900">{activePlan.readabilityScore.targetGrade}</span>
                 <p className="text-[11px] text-slate-500 mt-0.5">{activePlan.readabilityScore.notes}</p>
               </div>
               <span className="text-xs font-extrabold px-2 py-1 bg-teal-50 text-teal-800 rounded-lg border border-teal-200">
-                Grade {activePlan.readabilityScore.fleschKincaidGradeLevel}
+                {ui.results.grade} {activePlan.readabilityScore.fleschKincaidGradeLevel}
               </span>
             </div>
           </div>
@@ -812,7 +834,7 @@ export const WorkflowWizard: React.FC<WorkflowWizardProps> = ({
                 }`}
               >
                 <FileText className="w-4 h-4" />
-                <span>Care Plan Overview</span>
+                <span>{ui.results.tabOverview}</span>
               </button>
 
               <button
@@ -825,7 +847,7 @@ export const WorkflowWizard: React.FC<WorkflowWizardProps> = ({
                 }`}
               >
                 <Calendar className="w-4 h-4" />
-                <span>7-Day Recovery Timetable</span>
+                <span>{ui.results.tabTimetable}</span>
               </button>
 
               <button
@@ -838,7 +860,7 @@ export const WorkflowWizard: React.FC<WorkflowWizardProps> = ({
                 }`}
               >
                 <Languages className="w-4 h-4" />
-                <span>Bilingual (EN / తెలుగు)</span>
+                <span>{ui.results.tabBilingual}</span>
               </button>
 
               {viewLevel === 'professional' && (
@@ -853,7 +875,7 @@ export const WorkflowWizard: React.FC<WorkflowWizardProps> = ({
                     }`}
                   >
                     <ShieldCheck className="w-4 h-4" />
-                    <span>Clinical Audit ({activeReport.checks.length})</span>
+                    <span>{ui.results.tabAudit} ({activeReport.checks.length})</span>
                   </button>
 
                   <button
@@ -866,7 +888,7 @@ export const WorkflowWizard: React.FC<WorkflowWizardProps> = ({
                     }`}
                   >
                     <FileText className="w-4 h-4" />
-                    <span>Source Inspector</span>
+                    <span>{ui.results.tabSource}</span>
                   </button>
                 </>
               )}
@@ -881,7 +903,7 @@ export const WorkflowWizard: React.FC<WorkflowWizardProps> = ({
                 }`}
               >
                 <Printer className="w-4 h-4" />
-                <span>1-Page Patient Sheet</span>
+                <span>{ui.results.tabPrint}</span>
               </button>
             </div>
 
@@ -890,7 +912,7 @@ export const WorkflowWizard: React.FC<WorkflowWizardProps> = ({
               onClick={() => setCurrentStep(1)}
               className="text-xs font-semibold text-teal-700 hover:text-teal-900 pb-2"
             >
-              + Process Another Summary
+              + {ui.results.createAnother}
             </button>
           </div>
 

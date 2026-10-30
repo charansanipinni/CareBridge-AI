@@ -7,6 +7,8 @@ interface MedicationTableProps {
 }
 
 export const MedicationTable: React.FC<MedicationTableProps> = ({ medications }) => {
+  const isTelugu = medications.some(m => /[\u0C00-\u0C7F]/.test(m.whenToTake || '') || /[\u0C00-\u0C7F]/.test(m.forHowLong || ''));
+
   return (
     <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm overflow-hidden mb-6">
       <div className="p-5 sm:p-6 border-b border-slate-100 flex items-center justify-between">
@@ -15,15 +17,19 @@ export const MedicationTable: React.FC<MedicationTableProps> = ({ medications })
             <Pill className="w-5 h-5" />
           </div>
           <div>
-            <h3 className="text-base font-bold text-slate-900">Discharge Medications Table</h3>
+            <h3 className="text-base font-bold text-slate-900">
+              {isTelugu ? '2. డిశ్చార్జ్ మందుల పట్టిక (Discharge Medications Table)' : '2. Discharge Medications Table'}
+            </h3>
             <p className="text-xs text-slate-500">
-              Clear dosage, schedules, and duration with deterministic source validation
+              {isTelugu 
+                ? 'మోతాదు, తీసుకునే సమయాలు మరియు వ్యవధి వివరాలు'
+                : 'Clear dosage, schedules, and duration with deterministic source validation'}
             </p>
           </div>
         </div>
 
         <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
-          {medications.length} {medications.length === 1 ? 'Medication' : 'Medications'}
+          {medications.length} {isTelugu ? 'మందులు' : medications.length === 1 ? 'Medication' : 'Medications'}
         </span>
       </div>
 
@@ -31,13 +37,13 @@ export const MedicationTable: React.FC<MedicationTableProps> = ({ medications })
         <table className="w-full text-left border-collapse">
           <thead>
             <tr className="bg-slate-50/80 border-b border-slate-200 text-[11px] font-bold text-slate-600 uppercase tracking-wider">
-              <th className="py-3 px-4">Medicine</th>
-              <th className="py-3 px-4">Strength</th>
-              <th className="py-3 px-4">Dose (How Much)</th>
-              <th className="py-3 px-4">Route</th>
-              <th className="py-3 px-4">When to Take</th>
-              <th className="py-3 px-4">Duration</th>
-              <th className="py-3 px-4 text-center">Safety Status</th>
+              <th className="py-3 px-4">{isTelugu ? 'మందు పేరు' : 'Medicine'}</th>
+              <th className="py-3 px-4">{isTelugu ? 'సామర్థ్యం (Strength)' : 'Strength'}</th>
+              <th className="py-3 px-4">{isTelugu ? 'మోతాదు (How Much)' : 'Dose (How Much)'}</th>
+              <th className="py-3 px-4">{isTelugu ? 'మార్గం (Route)' : 'Route'}</th>
+              <th className="py-3 px-4">{isTelugu ? 'ఎప్పుడు తీసుకోవాలి' : 'When to Take'}</th>
+              <th className="py-3 px-4">{isTelugu ? 'వ్యవధి (Duration)' : 'Duration'}</th>
+              <th className="py-3 px-4 text-center">{isTelugu ? 'భద్రతా స్థితి' : 'Safety Status'}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 text-xs">
@@ -90,17 +96,17 @@ export const MedicationTable: React.FC<MedicationTableProps> = ({ medications })
                     {isMatched ? (
                       <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
                         <CheckCircle2 className="w-3.5 h-3.5 mr-1 text-emerald-600" />
-                        Verified
+                        {isTelugu ? 'సరిచూడబడింది' : 'Verified'}
                       </span>
                     ) : isDiscrepancy ? (
                       <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
                         <AlertTriangle className="w-3.5 h-3.5 mr-1 text-amber-600" />
-                        Check Needed
+                        {isTelugu ? 'సమీక్ష అవసరం' : 'Check Needed'}
                       </span>
                     ) : (
                       <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-slate-100 text-slate-600">
                         <HelpCircle className="w-3.5 h-3.5 mr-1 text-slate-400" />
-                        Unverified
+                        {isTelugu ? 'ధృవీకరించబడలేదు' : 'Unverified'}
                       </span>
                     )}
                   </td>
