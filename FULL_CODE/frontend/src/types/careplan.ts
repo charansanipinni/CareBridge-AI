@@ -38,6 +38,7 @@ export interface ClinicalFacts {
   patientId: string | null;
   admissionReason: string | null;
   medications: MedicationFact[];
+  stoppedMedications?: string[];
   warningSigns: {
     explicitListGiven: boolean;
     signs: string[];

@@ -27,23 +27,47 @@ export function extractClinicalFacts(rawText: string): ClinicalFacts {
     admissionReason = reasonMatch[1].trim().replace(/\.$/, '');
   }
 
-  // 3. Medications
+  // 3. Medications & Stopped Medications
   const medications: MedicationFact[] = [];
+  const stoppedMedications: string[] = [];
   const contradictions: string[] = [];
 
+  // Dedicated stopped medicines section if present
+  const stopSectionMatch = normalized.match(/(?:STOP(?:PED)?\s+MEDICATIONS?|DISCONTINUED\s+MEDICATIONS?|MEDICATIONS?\s+TO\s+STOP)[:\s]*([\s\S]*?)(?=(?:HOME\s+CARE|DIETARY|DIET|ACTIVITY|WOUND|WARNING|EMERGENCY|FOLLOW-UP|$))/i);
+  if (stopSectionMatch) {
+    const stopLines = stopSectionMatch[1].split(/\r?\n/).map(l => l.replace(/^\d+[\.\)]\s*|^[-*]\s*/, '').trim()).filter(Boolean);
+    for (const sl of stopLines) {
+      if (!sl.toLowerCase().startsWith('none')) {
+        const cleanStop = sl.replace(/^(?:stop|discontinue|hold)\s+(?:tab(?:let)?|cap(?:sule)?|inj(?:ection)?)?\.?\s*/i, '').trim();
+        if (cleanStop && !stoppedMedications.includes(cleanStop)) {
+          stoppedMedications.push(cleanStop);
+        }
+      }
+    }
+  }
+
   // Find medication section or parse medication lines
-  const medSectionMatch = normalized.match(/(?:MEDICATION(?:S)?(?:\s+PRESCRIBED)?|DISCHARGE\s+MEDICATIONS)[:\s]*([\s\S]*?)(?=(?:HOME\s+CARE|DIETARY|DIET|ACTIVITY|WOUND|WARNING\s+SIGNS|FOLLOW-UP|FOLLOW\s+UP|$))/i);
+  const medSectionMatch = normalized.match(/(?:MEDICATION(?:S)?(?:\s+PRESCRIBED)?|DISCHARGE\s+MEDICATIONS)[:\s]*([\s\S]*?)(?=(?:HOME\s+CARE|DIETARY|DIET|ACTIVITY|WOUND|WARNING(?:\s+SIGNS)?|EMERGENCY|WHEN\s+TO\s+SEEK|FOLLOW-UP|FOLLOW\s+UP|STOP\s+MEDICATIONS?|$))/i);
   const medBlock = medSectionMatch ? medSectionMatch[1].trim() : '';
 
   if (medBlock) {
     const rawMedEntries = medBlock
-      .split(/(?:\r?\n(?=\d+\.|\-|\*|[A-Z][a-z0-9\s]+,))|\r?\n\r?\n/)
+      .split(/(?:\r?\n(?=\d+[\.\)]|\-|\*|[A-Z][a-z0-9\s]+,))|\r?\n\r?\n/)
       .map(e => e.trim())
       .filter(e => e.length > 0);
 
     for (let i = 0; i < rawMedEntries.length; i++) {
-      const entry = rawMedEntries[i].replace(/^\d+\.\s*/, '').replace(/^[-*]\s*/, '').trim();
+      const entry = rawMedEntries[i].replace(/^\d+[\.\)]\s*/, '').replace(/^[-*]\s*/, '').trim();
       if (!entry || entry.toLowerCase().startsWith('none')) continue;
+
+      // Check if this line is an order to discontinue or stop
+      if (/^(?:stop|discontinue|hold)\s+/i.test(entry)) {
+        const cleanStop = entry.replace(/^(?:stop|discontinue|hold)\s+(?:tab(?:let)?|cap(?:sule)?|inj(?:ection)?)?\.?\s*/i, '').trim();
+        if (cleanStop && !stoppedMedications.includes(cleanStop)) {
+          stoppedMedications.push(cleanStop);
+        }
+        continue;
+      }
 
       const medFact = parseMedicationLine(entry, `med-${i + 1}`);
       if (medFact) {
@@ -177,6 +201,7 @@ export function extractClinicalFacts(rawText: string): ClinicalFacts {
       evidence: homeCareEvidence,
     },
     followUp,
+    stoppedMedications,
     contradictionsDetected: contradictions,
   };
 }
@@ -214,8 +239,8 @@ function parseMedicationLine(line: string, id: string): MedicationFact | null {
     name = parts[0].trim();
   }
 
-  // Clean medication name from leading numbers/bullets
-  name = name.replace(/^\d+[\s.-]*/, '').replace(/^(tablet|capsule|tab|cap)\s+/i, '').trim();
+  // Clean medication name from leading numbers/bullets and prefixes
+  name = name.replace(/^\d+[\s.-]*/, '').replace(/^(?:tablet|capsule|tab|cap|inj|syp)\.?\s+/i, '').trim();
 
   // Dose: e.g. "one tablet", "1 tablet", "2 puffs", "1 capsule"
   const doseMatch = cleanLine.match(/(\b(?:one|two|three|\d+)\s+(?:tablet|tablets|tab|capsule|capsules|cap|puff|puffs|drop|drops|unit|units)\b)/i);

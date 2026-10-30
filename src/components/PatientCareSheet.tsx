@@ -157,6 +157,21 @@ export const PatientCareSheet: React.FC<PatientCareSheetProps> = ({
         </div>
       </div>
 
+      {/* Stopped Medications - Critical Safety Section */}
+      {facts.stoppedMedications && facts.stoppedMedications.length > 0 && (
+        <div className="mb-5 p-3.5 rounded-lg border-2 border-amber-500 bg-amber-50/80 page-break-inside-avoid">
+          <h2 className="text-xs font-bold text-amber-900 uppercase tracking-wider mb-1 flex items-center">
+            <AlertTriangle className="w-4 h-4 mr-1.5 text-amber-700" />
+            {isTelugu ? 'తక్షణమే ఆపివేయవలసిన మందులు (DO NOT TAKE)' : 'MEDICINES TO STOP IMMEDIATELY (DO NOT TAKE)'}
+          </h2>
+          <ul className="list-disc pl-4 text-xs font-semibold text-amber-950 space-y-0.5">
+            {facts.stoppedMedications.map((s, idx) => (
+              <li key={idx}>STOP {s}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {/* Grid: Daily Care, Diet, Activity */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-5 page-break-inside-avoid text-xs">
         {/* Daily Care */}
