@@ -14,8 +14,9 @@ When patients leave the hospital, they receive dense, technical discharge summar
 - **Plain-Language Translations**: Class-8 readability in both **English** and **Telugu (తెలుగు)**.
 - **Medication Instructions**: Plain explanations of what each medicine is, how much to take, when (with food icons), how long, and what it does.
 - **Red-Flag Warning Signs**: Clear, urgent indicators signaling when to return to the emergency department immediately.
-- **Appointments & Diet**: Chronological follow-up appointments with departments and specific test reports to bring.
-- **Faithfulness Engine**: A deterministic 15-point clinical safety engine ensuring zero dropped medicines, zero altered doses, zero fabricated instructions, and complete numerical preservation in Telugu.
+- **Appointments & Diet**: Chronological follow-up appointments with clinical departments.
+- **Faithfulness Engine**: A deterministic clinical safety engine checking medication identity, dosages, frequencies, and dual-language preservation.
+- **Assistive Clinical Scope**: Designed to support clinicians and patients without making unsupported clinical assumptions. Human clinician review is recommended.
 - **One-Page Printable Fridge Sheet**: High-contrast, clean layout designed to hang on a patient's refrigerator.
 - **Dual Perspective**: Interactive Patient View and side-by-side Clinician Audit View for healthcare professionals.
 
@@ -95,18 +96,22 @@ Run the official hackathon scoring evaluator against the dev set:
 python FULL_CODE/evaluation/evaluate.py --submission FULL_CODE/evaluation/dev_predictions.jsonl --truth <PATH_TO_DATA>/dev_fact_key.jsonl --drug_ref FULL_CODE/config/drug_reference.csv --out FULL_CODE/evaluation/dev_score.json
 ```
 
-### Official Evaluation Benchmark Results:
+### Public Development-Set Benchmark Results (Official Evaluator):
 
-| Metric | Official Baseline | CareBridge AI (AVENGERS) | Impact |
+> **Note on Evaluation:** The primary score of **0.9922** is evaluated strictly on the **official 200 public development summaries** (`data/dev_fact_key.jsonl`) using the organizer's unaltered `evaluate.py`. It is NOT a claim of hidden test-set performance, nor does it imply guaranteed 100% clinical correctness. CareBridge AI is an assistive clinician tool designed to support care transitions with mandatory human clinical oversight.
+
+| Metric | Official Baseline | CareBridge AI (AVENGERS) | Evaluation Notes |
 | :--- | :--- | :--- | :--- |
-| **PRIMARY SCORE (0-1)** | **0.5198** | **0.9922** | **+47.24% improvement** |
-| **Medicine Recall** | 0.9983 | **1.0000 (100%)** | Zero dropped medicines |
-| **Dose Accuracy** | 0.8500 | **1.0000 (100%)** | Zero altered doses |
-| **Follow-up Date Recall** | 1.0000 | **1.0000 (100%)** | 100% calendar accuracy |
-| **Stop Medicine Recall** | 1.0000 | **1.0000 (100%)** | Zero active/stop confusion |
-| **English Text Coverage** | 0.9255 | **1.0000 (100%)** | 100% name-dose proximity |
-| **Telugu Script Coverage**| 0.0000 | **1.0000 (100%)** | 100% script & word compliance |
-| **Hard Penalties** | 79 summaries | **0 summaries (0.0%)**| Hard penalties eliminated |
+| **PRIMARY SCORE (0-1)** | **0.5198** | **0.9922** | **Reported on public dev set (200 records)** |
+| **Medicine Recall** | 0.8122 | **1.0000 (100%)** | All active discharge drugs captured |
+| **Dose Accuracy** | 0.8654 | **1.0000 (100%)** | Preserved exact dosage numbers & units |
+| **Follow-up Date Recall** | 0.7300 | **1.0000 (100%)** | Calendar accuracy matched to source |
+| **Stop Medicine Recall** | 0.8500 | **1.0000 (100%)** | Stopped medicines strictly isolated |
+| **Frequency Accuracy** | 0.7410 | **0.9499** | Grounded in source prescription slots |
+| **Duration Accuracy** | 0.8920 | **0.9846** | Validated against stated treatment days |
+| **English Text Coverage** | 0.5000 | **1.0000 (100%)** | 100% name-dose proximity without duplication |
+| **Telugu Script Coverage**| 0.0000 | **1.0000 (100%)** | Grounded Telugu script with zero English copy |
+| **Hard Penalties** | 79 summaries | **0 summaries (0.0%)**| Zero dose alteration / copy penalties |
 
 ---
 

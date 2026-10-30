@@ -50,7 +50,7 @@ class TranslationService:
                 elif freq_str:
                     freq_te = freq_str
 
-                # Instruction line grounded in source (NEVER add water instructions)
+                # Grounded instruction line (NEVER add water instructions)
                 parts = []
                 if timing_te:
                     parts.append(timing_te)
@@ -65,90 +65,99 @@ class TranslationService:
                 dur_str = (m.get("duration") or "").strip()
                 if dur_str and dur_str not in ["-", "--", "---", "none", "nil", "n/a", "N/A"]:
                     dur_low = dur_str.lower()
-                    if "till" in dur_low or "until" in dur_low:
-                        dur_te = "తదుపరి వైద్యుల సమీక్ష వరకు"
+                    if "review" in dur_low or "visit" in dur_low:
+                        dur_te = "తదుపరి సమీక్ష వరకు"
+                    elif "suture" in dur_low:
+                        dur_te = "కుట్లు విప్పే వరకు"
+                    elif "finished" in dur_low:
+                        dur_te = "మందులు పూర్తయ్యే వరకు"
                     elif "life" in dur_low:
                         dur_te = "జీవితాంతం"
+                    elif dur_low.startswith("till") or dur_low.startswith("until"):
+                        dur_te = f"{dur_str} వరకు"
                     else:
                         dur_te = f"{dur_str} పాటు"
                     out.append(f"   - వ్యవధి: {dur_te} క్రమం తప్పకుండా తీసుకోండి.")
 
-        # 2. Stop Medicines - ONLY if present in source
+        # 2. Stop Medicines - ONLY if present in source (NEVER strengthen unless source says so)
         stop_meds = cp.get("stop_medicines", [])
         if stop_meds:
-            out.append("\nతక్షణమే ఆపివేయవలసిన మందులు:")
+            out.append("\nఆపివేయవలసిన మందులు:")
             for s in stop_meds:
-                out.append(f"- STOP {s}. ఈ మందును ఇకపై వాడవద్దు. దీనిని నిలిపివేయండి.")
+                if any(w in s.lower() for w in ["immediately", "promptly", "urgent"]):
+                    out.append(f"- STOP {s}. ఈ మందును వెంటనే ఆపండి.")
+                else:
+                    out.append(f"- STOP {s}. ఈ మందును ఆపండి.")
 
-        # 3. Warning Signs - ONLY if present in source
+        # 3. Warning Signs - ONLY if present in source (No broad expansions)
         warns = cp.get("warning_signs", [])
         if warns:
             warn_items = []
             blob = " ".join(warns).lower()
             if any(k in blob for k in ["chest pain", "angina", "tightness"]):
-                warn_items.append("ఛాతీలో నొప్పి లేదా తీవ్రమైన ఒత్తిడి రావడం.")
+                warn_items.append("ఛాతీలో నొప్పి లేదా ఒత్తిడి రావడం.")
             if any(k in blob for k in ["shortness of breath", "breathless", "dyspnea"]):
-                warn_items.append("శ్వాస తీసుకోవడంలో తీవ్రమైన ఇబ్బంది లేదా ఆయాసం కలగడం.")
+                warn_items.append("శ్వాస తీసుకోవడంలో ఇబ్బంది లేదా ఆయాసం కలగడం.")
             if any(k in blob for k in ["fever", "chills", "temperature"]):
-                warn_items.append("తీవ్రమైన జ్వరం, ఒణుకు లేదా చలి రావడం.")
+                warn_items.append("జ్వరం లేదా చలి రావడం.")
             if any(k in blob for k in ["bleeding", "blood in", "gums", "hematuria"]):
-                warn_items.append("రక్తస్రావం జరగడం లేదా గాయం నుండి రక్తం కారడం.")
+                warn_items.append("రక్తస్రావం జరగడం.")
             if any(k in blob for k in ["redness", "pus", "drainage", "wound"]):
-                warn_items.append("గాయం వద్ద వాపు, ఎరుపుదనం లేదా చీము కారడం.")
+                warn_items.append("గాయం వద్ద ఎరుపుదనం లేదా చీము కారడం.")
             if any(k in blob for k in ["headache", "blurred vision", "vision"]):
-                warn_items.append("తీవ్రమైన తలనొప్పి లేదా కంటి చూపు మసకబారడం.")
+                warn_items.append("తీవ్రమైన తలనొప్పి లేదా చూపు మసకబారడం.")
             if any(k in blob for k in ["pain in calf", "swelling of the leg", "dvt", "swelling"]):
-                warn_items.append("పిక్కల్లో నొప్పి లేదా కాళ్లలో వాపు రావడం.")
+                warn_items.append("కాళ్లలో నొప్పి లేదా వాపు రావడం.")
             if any(k in blob for k in ["dizziness", "fainting", "syncope"]):
-                warn_items.append("తీవ్రమైన తలతిరగడం లేదా స్పృహ తప్పిపోవడం.")
+                warn_items.append("తలతిరగడం లేదా స్పృహ తప్పడం.")
             if any(k in blob for k in ["vomit", "nausea"]):
-                warn_items.append("నిరంతరం వాంతులు కావడం లేదా ఆహారం నిలవకపోవడం.")
+                warn_items.append("వాంతులు కావడం.")
 
             if warn_items:
                 out.append("\nఈ క్రింది ప్రమాదకర లక్షణాలు కనిపిస్తే ఆలస్యం చేయకుండా వెంటనే ఆసుపత్రికి వెళ్లండి:")
                 for item in warn_items:
                     out.append(f"- {item}")
 
-        # 4. Diet - ONLY if present in source
+        # 4. Diet - ONLY if present in source (Strictly grounded, no spicy/boiled-water expansions)
         diet = cp.get("diet", [])
         if diet:
             diet_items = []
             blob = " ".join(diet).lower()
             if any(k in blob for k in ["salt", "sodium"]):
-                diet_items.append("ఉప్పు తక్కువగా ఉండే ఆహారాన్ని మాత్రమే తీసుకోవాలి.")
+                diet_items.append("ఉప్పు తక్కువగా తీసుకోవాలి.")
             if any(k in blob for k in ["oily", "fried", "fat"]):
-                diet_items.append("నూనె, వేపుడు మరియు మసాలా పదార్థాలను నివారించాలి.")
+                diet_items.append("నూనె మరియు కొవ్వు పదార్థాలను నివారించాలి.")
             if any(k in blob for k in ["diabetic", "sugar", "sweets"]):
-                diet_items.append("చక్కెర మరియు తీపి పదార్థాలు తీసుకోరాదు, డయాబెటిక్ ఆహార నియమాలు పాటించాలి.")
+                diet_items.append("చక్కెర పదార్థాలు తీసుకోరాదు.")
             if any(k in blob for k in ["protein", "dal", "eggs", "milk", "paneer"]):
-                diet_items.append("పప్పుధాన్యాలు, గుడ్లు మరియు పాల పదార్థాలతో కూడిన పౌష్టికాహారం తీసుకోవాలి.")
+                diet_items.append("పౌష్టికాహారం తీసుకోవాలి.")
             if any(k in blob for k in ["soft", "semisolid"]):
-                diet_items.append("తేలికగా జీర్ణమయ్యే మెత్తని ఆహారం తీసుకోవాలి.")
+                diet_items.append("మెత్తని ఆహారం తీసుకోవాలి.")
             if any(k in blob for k in ["fluid", "water", "hydration"]):
-                diet_items.append("శరీరానికి సరిపడా నీటిని త్రాగాలి.")
+                diet_items.append("తగినంత నీరు త్రాగాలి.")
 
             if diet_items:
                 out.append("\nఆహార నియమాలు:")
                 for item in diet_items:
                     out.append(f"- {item}")
 
-        # 5. Activity - ONLY if present in source
+        # 5. Activity - ONLY if present in source (Strictly grounded, no excessive restrictions)
         act = cp.get("activity", [])
         if act:
             act_items = []
             blob = " ".join(act).lower()
             if any(k in blob for k in ["heavy", "lifting"]):
-                act_items.append("బరువైన వస్తువులను ఎత్తకూడదు మరియు కష్టమైన పనులు చేయరాదు.")
+                act_items.append("బరువైన వస్తువులను ఎత్తకూడదు.")
             if any(k in blob for k in ["rest", "bed rest"]):
-                act_items.append("శరీరానికి తగినంత విశ్రాంతి ఇవ్వాలి మరియు ఎక్కువ శ్రమ పడకూడదు.")
+                act_items.append("శరీరానికి విశ్రాంతి ఇవ్వాలి.")
             if any(k in blob for k in ["walk", "walking", "walker"]):
-                act_items.append("ఇంటి లోపల నెమ్మదిగా కొద్ది దూరం నడవవచ్చు.")
+                act_items.append("నెమ్మదిగా నడవవచ్చు.")
             if any(k in blob for k in ["drive", "driving"]):
-                act_items.append("వైద్యులు అనుమతించే వరకు వాహనాలు నడపరాదు.")
+                act_items.append("వాహనాలు నడపరాదు.")
             if any(k in blob for k in ["exercise", "bending", "physio"]):
-                act_items.append("వైద్య సిబ్బంది నేర్పిన సాధారణ వ్యాయామాలు మాత్రమే చేయాలి.")
+                act_items.append("తేలికపాటి వ్యాయామాలు చేయాలి.")
             if any(k in blob for k in ["squat", "cross-legged", "toilet"]):
-                act_items.append("కింద కూర్చోవడం చేయరాదు మరియు వెస్ట్రన్ టాయిలెట్ మాత్రమే వాడాలి.")
+                act_items.append("కింద కూర్చోరాదు.")
 
             if act_items:
                 out.append("\nశారీరక శ్రమ మరియు విశ్రాంతి సూచనలు:")
@@ -161,28 +170,29 @@ class TranslationService:
             wound_items = []
             blob = " ".join(wound).lower()
             if any(k in blob for k in ["clean", "dry"]):
-                wound_items.append("గాయాన్ని మరియు డ్రెస్సింగ్‌ను ఎల్లప్పుడూ పొడిగా మరియు శుభ్రంగా ఉంచాలి.")
+                wound_items.append("గాయాన్ని పొడిగా మరియు శుభ్రంగా ఉంచాలి.")
             if any(k in blob for k in ["sponge", "soak", "immersion"]):
-                wound_items.append("గాయం తడవకుండా స్పాంజ్ స్నానం మాత్రమే చేయాలి, నీటిలో నానబెట్టవద్దు.")
+                wound_items.append("గాయం తడవకుండా జాగ్రత్తపడండి.")
             if any(k in blob for k in ["dressing", "remove"]):
-                wound_items.append("తదుపరి పరీక్ష వరకు డ్రెస్సింగ్‌ను అలాగే ఉంచండి.")
+                wound_items.append("డ్రెస్సింగ్‌ను జాగ్రత్తగా ఉంచండి.")
             if any(k in blob for k in ["ice", "pack"]):
-                wound_items.append("కీలు లేదా వాపు ఉన్న చోట కొద్ది సమయం ఐస్ ప్యాక్ ఉంచవచ్చు.")
+                wound_items.append("ఐస్ ప్యాక్ ఉంచవచ్చు.")
 
             if wound_items:
                 out.append("\nగాయం సంరక్షణ సూచనలు:")
                 for item in wound_items:
                     out.append(f"- {item}")
 
-        # 7. Follow-ups - ONLY if present in source
+        # 7. Follow-ups - ONLY if present in source (Do not assume "bring prior records")
         follow_ups = cp.get("follow_ups", [])
         if follow_ups:
-            out.append("\nతదుపరి వైద్య పరీక్షల కోసం ఆసుపత్రికి తిరిగి రావలసిన ముఖ్యమైన తేదీలు:")
+            out.append("\nతదుపరి వైద్య పరీక్షల తేదీలు:")
             for f in follow_ups:
-                out.append(f"- {f['date']}: వైద్యులను కలిసి పరీక్ష చేయించుకోవడానికి అవసరమైన అన్ని పాత రిపోర్టులతో రండి.")
+                out.append(f"- {f['date']}: వైద్యులను కలిసి పరీక్ష చేయించుకోండి.")
 
-        # General safety disclaimer with required function words
-        out.append("\nమీ మందుల వాడకంలో లేదా ఇతర సూచనలలో ఏదైనా సందేహం ఉంటే లేదా మార్పులు అవసరమైతే మీ వైద్యుడిని లేదా నర్సును తప్పక సంప్రదించండి.")
+        # Clearly separated general safety notice
+        out.append("\nసాధారణ భద్రతా గమనిక (ప్రామాణిక ఆసుపత్రి సమాచారం):")
+        out.append("మీ మందుల వాడకంలో లేదా ఇతర సూచనలలో ఏదైనా సందేహం ఉంటే లేదా మార్పులు అవసరమైతే మీ వైద్యుడిని లేదా నర్సును సంప్రదించండి.")
         out.append("వైద్యుల సలహా లేకుండా మందులను సొంతంగా మార్చడం లేదా ఆపడం సరైనది కాదు.")
 
         return "\n".join(out)

@@ -2,6 +2,14 @@
 """Submission Packaging & Compliance Verification Script for TalentAP Mega Hackathon 2026 - Problem H2.
 Team: AVENGERS | CareBridge AI
 
+Strict Fail-Closed Architecture:
+1. Requires official dataset split file (splits.csv / test_ids.csv). Halts if missing.
+2. Compares complete set of 300 expected vs submitted test IDs.
+3. Rejects missing IDs, extra IDs, duplicates, and schema non-compliance.
+4. Executes official evaluate.validate_submission schema audit.
+5. Recursively scans staging directory and extracted ZIP for forbidden files, model weights, datasets, and secrets.
+6. Enforces 50MB archive-size constraint and mandatory submission structure.
+
 Usage:
     python FULL_CODE/scripts/package_submission.py --team_id <YOUR_OFFICIAL_TEAM_ID> [--validate_only]
 Example:
@@ -11,20 +19,72 @@ Example:
 
 import argparse
 import os
+import re
 import shutil
-import subprocess
 import sys
 import tempfile
 import zipfile
 import json
 from pathlib import Path
 
-def validate_predictions_integrity(sub_file: Path, repo_path: Path):
-    """Strictly validates submission/H2_predictions.jsonl against official splits and schema."""
-    if not sub_file.exists():
-        raise FileNotFoundError(f"Missing submission predictions file: {sub_file}")
+# Security regex patterns
+SECRET_CONTENT_PATTERNS = [
+    re.compile(r"AIzaSy[A-Za-z0-9_-]{33}"),                  # Google API Key
+    re.compile(r"sk-[A-Za-z0-9]{32,}"),                     # OpenAI API Key
+    re.compile(r"-----BEGIN\s+(?:RSA\s+)?PRIVATE\s+KEY-----"), # Private key header
+]
 
-    # Load predictions
+FORBIDDEN_FILE_EXTENSIONS = {
+    ".pem", ".key", ".pkcs12", ".pfx",
+    ".pt", ".pth", ".bin", ".onnx", ".safetensors",
+    ".sqlite", ".sqlite3", ".db",
+}
+
+def scan_path_for_security_violations(target_dir: Path):
+    """Recursively inspects every directory and file for forbidden files, datasets, and secrets."""
+    for root, dirs, files in os.walk(target_dir):
+        # Check directories
+        for d in dirs:
+            if d in [".git", "node_modules", ".venv", "venv", "__pycache__", ".pytest_cache", ".cache"]:
+                raise ValueError(f"SECURITY VIOLATION: Forbidden directory found in package staging: {Path(root) / d}")
+
+        # Check files
+        for f in files:
+            fp = Path(root) / f
+            fn = f.lower()
+
+            # 1. Reject non-example .env files
+            if fn.startswith(".env") and fn != ".env.example":
+                raise ValueError(f"SECURITY VIOLATION: Environment credential file found: {fp}")
+
+            # 2. Reject forbidden extensions (keys, models, databases)
+            ext = fp.suffix.lower()
+            if ext in FORBIDDEN_FILE_EXTENSIONS:
+                raise ValueError(f"SECURITY VIOLATION: Forbidden file type ({ext}) found: {fp}")
+
+            # 3. Reject datasets and raw files
+            if fn in ["summaries.jsonl", "dev_fact_key.jsonl", "all_2000_predictions.jsonl"]:
+                raise ValueError(f"SECURITY VIOLATION: Prohibited dataset/scratch file found: {fp}")
+
+            # 4. Content scan for secrets in small text files (< 1MB)
+            if fp.stat().st_size < 1024 * 1024 and not ext in [".png", ".jpg", ".jpeg", ".ico", ".pdf", ".zip"]:
+                try:
+                    content = fp.read_text(encoding="utf-8", errors="ignore")
+                    for pattern in SECRET_CONTENT_PATTERNS:
+                        if pattern.search(content):
+                            raise ValueError(f"SECURITY VIOLATION: Hardcoded credential/secret pattern detected in {fp}")
+                except Exception as e:
+                    if "SECURITY VIOLATION" in str(e):
+                        raise
+
+def validate_predictions_integrity(sub_file: Path, repo_path: Path):
+    """Strictly validates submission/H2_predictions.jsonl against official splits and schema.
+    FAILS CLOSED if the official split file is missing or mismatching.
+    """
+    if not sub_file.exists():
+        raise FileNotFoundError(f"FAIL-CLOSED: Missing submission predictions file: {sub_file}")
+
+    # Load and check JSONL records
     rows = []
     seen_ids = set()
     dup_ids = set()
@@ -33,42 +93,71 @@ def validate_predictions_integrity(sub_file: Path, repo_path: Path):
             line_str = line.strip()
             if not line_str:
                 continue
-            rec = json.loads(line_str)
+            try:
+                rec = json.loads(line_str)
+            except json.JSONDecodeError as err:
+                raise ValueError(f"FAIL-CLOSED: Malformed JSON at line {line_num}: {err}")
+
             sid = rec.get("summary_id")
             if not sid:
-                raise ValueError(f"Line {line_num} missing 'summary_id'")
+                raise ValueError(f"FAIL-CLOSED: Line {line_num} missing required field 'summary_id'")
             if sid in seen_ids:
                 dup_ids.add(sid)
             seen_ids.add(sid)
             rows.append(rec)
 
     if dup_ids:
-        raise ValueError(f"Duplicate summary IDs detected in submission: {dup_ids}")
+        raise ValueError(f"FAIL-CLOSED: Duplicate summary IDs detected in submission: {dup_ids}")
 
     if len(rows) != 300:
-        raise ValueError(f"Expected exactly 300 predictions, but found {len(rows)}")
+        raise ValueError(f"FAIL-CLOSED: Expected exactly 300 predictions, but found {len(rows)}")
 
-    # Check against official splits.csv test IDs if available
-    splits_path = repo_path / "h2_official_pack" / "H2_Discharge_Summary_to_Care_Plan" / "data" / "splits.csv"
-    if splits_path.exists():
-        import pandas as pd
-        df = pd.read_csv(splits_path)
+    # 1. Require official split file - FAIL CLOSED if missing
+    split_candidates = [
+        repo_path / "h2_official_pack" / "H2_Discharge_Summary_to_Care_Plan" / "data" / "splits.csv",
+        repo_path / "data" / "splits.csv",
+        repo_path / "h2_official_pack" / "H2_Discharge_Summary_to_Care_Plan" / "data" / "test_ids.csv",
+    ]
+    splits_path = next((p for p in split_candidates if p.exists()), None)
+    if not splits_path:
+        raise FileNotFoundError(
+            "FAIL-CLOSED: Official dataset split file ('splits.csv' or 'test_ids.csv') is missing. "
+            "Verification cannot proceed without authoritative test IDs."
+        )
+
+    # 2. Authoritative test ID reconciliation
+    import pandas as pd
+    df = pd.read_csv(splits_path)
+    if "split" in df.columns:
         expected_test_ids = set(df[df["split"] == "test"]["summary_id"])
-        missing = expected_test_ids - seen_ids
-        extra = seen_ids - expected_test_ids
-        if missing:
-            raise ValueError(f"Submission is missing expected test IDs: {missing}")
-        if extra:
-            raise ValueError(f"Submission contains unknown/non-test IDs: {extra}")
-        print(f"  [x] Verified all {len(expected_test_ids)} expected test IDs against splits.csv (0 missing, 0 extra).")
+    elif "summary_id" in df.columns:
+        expected_test_ids = set(df["summary_id"])
+    else:
+        raise ValueError(f"FAIL-CLOSED: Official split file at {splits_path} missing summary_id column")
 
-    # Schema validation using official evaluate.py rules
+    if len(expected_test_ids) != 300:
+        raise ValueError(f"FAIL-CLOSED: Authoritative test split has {len(expected_test_ids)} IDs, expected exactly 300.")
+
+    missing = expected_test_ids - seen_ids
+    extra = seen_ids - expected_test_ids
+    if missing or extra:
+        raise ValueError(f"FAIL-CLOSED: Test ID set mismatch! Missing IDs: {len(missing)}, Extra IDs: {len(extra)}")
+
+    print(f"  [x] Verified all {len(expected_test_ids)} authoritative test IDs against {splits_path.name} (0 missing, 0 extra).")
+
+    # 3. Official evaluator schema validation execution
     eval_script = repo_path / "FULL_CODE" / "evaluation" / "evaluate.py"
-    if eval_script.exists():
-        sys.path.insert(0, str(eval_script.parent))
-        import evaluate
-        validated_dict = evaluate.validate_submission(rows)
-        print(f"  [x] Official schema validation passed for all {len(validated_dict)} records.")
+    if not eval_script.exists():
+        eval_script = repo_path / "h2_official_pack" / "H2_Discharge_Summary_to_Care_Plan" / "evaluate.py"
+    if not eval_script.exists():
+        raise FileNotFoundError(f"FAIL-CLOSED: Official evaluator script 'evaluate.py' not found.")
+
+    sys.path.insert(0, str(eval_script.parent))
+    import evaluate
+    validated_dict = evaluate.validate_submission(rows)
+    if len(validated_dict) != 300:
+        raise ValueError(f"FAIL-CLOSED: Official schema validator accepted {len(validated_dict)} records, expected 300.")
+    print(f"  [x] Official schema validation successfully executed and passed for all 300 records.")
 
 def main():
     parser = argparse.ArgumentParser(description="Package and verify official Hackathon submission zip")
@@ -93,7 +182,7 @@ def main():
     print(f" Mode: {'VALIDATE ONLY (No ZIP)' if args.validate_only else 'FULL PACKAGING'}")
     print("=" * 70)
 
-    # 1. Clean previous clone if exists
+    # 1. Clean previous staging
     if clone_dest.exists():
         shutil.rmtree(clone_dest, ignore_errors=True)
 
@@ -112,7 +201,20 @@ def main():
 
     shutil.copytree(repo_path, clone_dest, ignore=ignore_patterns)
 
-    # 3. Mandatory files verification
+    # 3. Clean any local scratch evaluation artifacts inside clone
+    forbidden_local = [
+        clone_dest / "FULL_CODE" / "evaluation" / "all_2000_predictions.jsonl",
+        clone_dest / ".pytest_cache",
+        clone_dest / "__pycache__",
+    ]
+    for p in forbidden_local:
+        if p.exists():
+            if p.is_dir():
+                shutil.rmtree(p, ignore_errors=True)
+            else:
+                p.unlink()
+
+    # 4. Mandatory root files verification
     mandatory_files = [
         clone_dest / "README.md",
         clone_dest / "LICENSE",
@@ -126,37 +228,34 @@ def main():
             sys.exit(1)
     print("  [x] Mandatory root files verified (README.md, LICENSE, .gitignore, submission/, FULL_CODE/).")
 
-    # 4. Deep prediction integrity validation
+    # 5. Deep prediction integrity validation (FAIL-CLOSED)
     sub_file = clone_dest / "submission" / "H2_predictions.jsonl"
     try:
         validate_predictions_integrity(sub_file, repo_path)
     except Exception as e:
         print(f"FATAL: Prediction integrity validation failed: {e}", file=sys.stderr)
+        shutil.rmtree(clone_dest, ignore_errors=True)
         sys.exit(1)
 
-    # 5. Check and remove forbidden directories and metadata in clone
-    forbidden = [".git", ".env", "data", "models", ".venv", "venv", "node_modules", ".pytest_cache", "__pycache__", "h2_official_pack"]
-    for item in forbidden:
-        p = clone_dest / item
-        if p.exists():
-            if p.is_dir():
-                shutil.rmtree(p, ignore_errors=True)
-            else:
-                p.unlink()
-
-    all_2000_p = clone_dest / "FULL_CODE" / "evaluation" / "all_2000_predictions.jsonl"
-    if all_2000_p.exists():
-        all_2000_p.unlink()
+    # 6. Deep recursive security and secret scan on staging directory
+    try:
+        scan_path_for_security_violations(clone_dest)
+        print("  [x] Recursive security scan passed (zero unauthorized .env files, private keys, models, or secrets).")
+    except Exception as e:
+        print(f"FATAL: Security scan failed on staging tree: {e}", file=sys.stderr)
+        shutil.rmtree(clone_dest, ignore_errors=True)
+        sys.exit(1)
 
     if args.validate_only:
         print("=" * 70)
         print(" [x] PRE-PACKAGING VERIFICATION COMPLETED: ALL AUDIT CHECKS PASSED!")
         print("     Repository is strictly compliant and ready for final release.")
+        print("     CONFIRMATION: No ZIP file was created.")
         print("=" * 70)
         shutil.rmtree(clone_dest, ignore_errors=True)
         return
 
-    # 6. Create Zip archive
+    # 7. Create Zip archive
     print(f"Creating ZIP archive: {target_zip}...")
     if target_zip.exists():
         target_zip.unlink()
@@ -171,18 +270,23 @@ def main():
                 arcname = file_path.relative_to(output_dir)
                 zipf.write(file_path, arcname)
 
-    # 7. Verification of extracted archive in fresh temporary directory
+    # 8. Verification of extracted archive in fresh temporary directory
     print("Verifying archive via fresh extraction into temporary sandbox...")
     with tempfile.TemporaryDirectory() as temp_dir:
         with zipfile.ZipFile(target_zip, "r") as zf:
             zf.extractall(temp_dir)
         extracted_root = Path(temp_dir) / pack_folder_name
+        
+        # Verify mandatory contents in extracted tree
         if not (extracted_root / "submission" / "H2_predictions.jsonl").exists():
             print("FATAL: Extracted archive missing submission file!", file=sys.stderr)
             sys.exit(1)
-        if (extracted_root / ".git").exists() or (extracted_root / "node_modules").exists():
-            print("FATAL: Extracted archive contains forbidden files!", file=sys.stderr)
+        if not (extracted_root / "FULL_CODE").exists():
+            print("FATAL: Extracted archive missing FULL_CODE directory!", file=sys.stderr)
             sys.exit(1)
+            
+        # Recursive security scan on extracted archive contents
+        scan_path_for_security_violations(extracted_root)
 
     zip_size_mb = target_zip.stat().st_size / (1024 * 1024)
     if zip_size_mb > 50.0:

@@ -554,3 +554,175 @@ def test_english_telugu_numerical_mismatch_fails():
     assert report["is_valid"] is False
     assert report["checks"]["telugu_numeric_corruption"]["status"] == "FAIL"
 
+# 17. Strict Pre-Submission Compliance & Fail-Closed Regression Tests
+def test_ambiguous_until_expressions():
+    translator = TranslationService()
+    cp = {
+        "medicines": [
+            {"name": "Cefixime", "dose": "200 mg", "frequency": "BD", "duration": "till suture removal"},
+            {"name": "Amoxicillin", "dose": "500 mg", "frequency": "TDS", "duration": "until finished"},
+        ],
+        "stop_medicines": [],
+        "warning_signs": [],
+        "diet": [],
+        "activity": [],
+        "wound_care": [],
+        "follow_ups": [],
+    }
+    te = translator.generate_telugu(cp)
+    # Must NOT automatically translate every until/till into "doctor review"
+    assert "కుట్లు విప్పే వరకు" in te
+    assert "మందులు పూర్తయ్యే వరకు" in te
+    assert "తదుపరి సమీక్ష వరకు" not in te
+
+def test_stop_instructions_with_and_without_immediately():
+    from ai_pipeline.submission_generator import SubmissionGenerator
+    translator = TranslationService()
+    gen = SubmissionGenerator()
+    
+    # Without immediately in source
+    cp_normal = {
+        "medicines": [],
+        "stop_medicines": ["Atenolol 50 mg"],
+        "follow_ups": [],
+    }
+    te_normal = translator.generate_telugu(cp_normal)
+    plan_normal = gen.generate_single_plan("test_normal", "DISCHARGE MEDICATIONS:\nStop Tab. Atenolol 50 mg OD")
+    
+    assert "ఈ మందును ఆపండి" in te_normal
+    assert "వెంటనే" not in te_normal
+    assert "ఇకపై వాడవద్దు" not in te_normal
+    assert "immediately" not in plan_normal["plain_text_en"].lower()
+    
+    # With immediately in source
+    cp_urgent = {
+        "medicines": [],
+        "stop_medicines": ["Warfarin 5 mg immediately"],
+        "follow_ups": [],
+    }
+    te_urgent = translator.generate_telugu(cp_urgent)
+    plan_urgent = gen.generate_single_plan("test_urgent", "DISCHARGE MEDICATIONS:\nStop Tab. Warfarin 5 mg immediately")
+    assert "వెంటనే" in te_urgent
+    assert "immediately" in plan_urgent["plain_text_en"].lower()
+
+def test_broad_diet_keywords_no_spicy_or_boiled_water():
+    from ai_pipeline.submission_generator import SubmissionGenerator
+    gen = SubmissionGenerator()
+    translator = TranslationService()
+    cp = {
+        "medicines": [],
+        "stop_medicines": [],
+        "diet": ["Avoid oily food", "Drink adequate water"],
+        "follow_ups": [],
+    }
+    plan = gen.generate_single_plan("test_diet", "DIET:\nAvoid oily food\nDrink adequate water")
+    te = translator.generate_telugu(cp)
+    
+    # Must NOT add "spicy" or "boiled"
+    assert "spicy" not in plan["plain_text_en"].lower()
+    assert "boiled" not in plan["plain_text_en"].lower()
+    assert "మసాలా" not in te
+    assert "కాచి" not in te
+
+def test_unsupported_followup_recommendations_not_added():
+    from ai_pipeline.submission_generator import SubmissionGenerator
+    gen = SubmissionGenerator()
+    translator = TranslationService()
+    cp = {
+        "medicines": [],
+        "stop_medicines": [],
+        "follow_ups": [{"date": "2026-07-20", "with_whom": "Cardiology"}],
+    }
+    plan = gen.generate_single_plan("test_fu", "FOLLOW UP:\nCardiology on 2026-07-20")
+    te = translator.generate_telugu(cp)
+    
+    # Must NOT add "bring prior records" or "పాత రిపోర్టులతో రండి"
+    assert "prior records" not in plan["plain_text_en"].lower()
+    assert "పాత రిపోర్టులు" not in te
+
+def test_package_submission_fail_closed_missing_split(tmp_path):
+    from scripts.package_submission import validate_predictions_integrity
+    dummy_sub = tmp_path / "dummy_sub.jsonl"
+    with open(dummy_sub, "w", encoding="utf-8") as f:
+        for i in range(300):
+            f.write(f'{{"summary_id": "test_{i}"}}\n')
+    fake_empty_repo = tmp_path / "empty_repo"
+    fake_empty_repo.mkdir()
+    
+    # Must fail closed with FileNotFoundError if split file is missing
+    with pytest.raises(FileNotFoundError, match="FAIL-CLOSED: Official dataset split file"):
+        validate_predictions_integrity(dummy_sub, fake_empty_repo)
+
+def test_package_submission_fail_closed_id_mismatch(tmp_path):
+    from scripts.package_submission import validate_predictions_integrity
+    # Create mock split file with 300 IDs
+    split_dir = tmp_path / "h2_official_pack" / "H2_Discharge_Summary_to_Care_Plan" / "data"
+    split_dir.mkdir(parents=True)
+    split_csv = split_dir / "splits.csv"
+    with open(split_csv, "w", encoding="utf-8") as f:
+        f.write("summary_id,split\n")
+        for i in range(300):
+            f.write(f"ID_{i:03d},test\n")
+            
+    # Submission has only 299 IDs (missing ID_299)
+    sub_file = tmp_path / "sub.jsonl"
+    with open(sub_file, "w", encoding="utf-8") as f:
+        for i in range(299):
+            f.write(f'{{"summary_id": "ID_{i:03d}"}}\n')
+            
+    with pytest.raises(ValueError, match="FAIL-CLOSED: Expected exactly 300"):
+        validate_predictions_integrity(sub_file, tmp_path)
+
+def test_security_scan_rejects_nested_secrets(tmp_path):
+    from scripts.package_submission import scan_path_for_security_violations
+    staging_dir = tmp_path / "staging"
+    staging_dir.mkdir()
+    
+    # 1. Reject unauthorized .env
+    bad_env = staging_dir / "subdir" / ".env.production"
+    bad_env.parent.mkdir()
+    bad_env.write_text("SECRET=123", encoding="utf-8")
+    with pytest.raises(ValueError, match="Environment credential file found"):
+        scan_path_for_security_violations(staging_dir)
+    bad_env.unlink()
+    
+    # 2. Reject private key
+    bad_key = staging_dir / "cert.key"
+    bad_key.write_text("fake_key", encoding="utf-8")
+    with pytest.raises(ValueError, match="Forbidden file type"):
+        scan_path_for_security_violations(staging_dir)
+    bad_key.unlink()
+    
+    # 3. Reject API key pattern
+    bad_code = staging_dir / "code.py"
+    bad_code.write_text('API_KEY = "sk-' + ('a' * 35) + '"\n', encoding="utf-8")
+    with pytest.raises(ValueError, match="Hardcoded credential/secret pattern detected"):
+        scan_path_for_security_violations(staging_dir)
+    bad_code.unlink()
+
+def test_telugu_preservation_numbers_names_units():
+    translator = TranslationService()
+    cp = {
+        "medicines": [
+            {"name": "Metformin", "dose": "500 mg", "frequency": "BD", "timing": "after food"},
+            {"name": "Thyroxine", "dose": "100 mcg", "frequency": "OD", "timing": "before breakfast"},
+        ],
+        "stop_medicines": [],
+        "warning_signs": [],
+        "diet": [],
+        "activity": [],
+        "wound_care": [],
+        "follow_ups": [{"date": "2026-08-25", "with_whom": "OPD"}],
+    }
+    te = translator.generate_telugu(cp)
+    
+    # Latin names preserved
+    assert "Metformin 500 mg" in te
+    assert "Thyroxine 100 mcg" in te
+    # Date preserved
+    assert "2026-08-25" in te
+    # Units preserved
+    assert "mg" in te
+    assert "mcg" in te
+
+

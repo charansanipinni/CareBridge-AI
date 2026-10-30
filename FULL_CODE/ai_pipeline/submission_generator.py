@@ -39,12 +39,14 @@ class SubmissionGenerator:
         if stop_meds:
             en_out.append("\nMEDICINES TO STOP:")
             for s in stop_meds:
-                en_out.append(f"- STOP {s}. Please discontinue this medicine immediately.")
+                if any(w in s.lower() for w in ["immediately", "promptly", "urgent"]):
+                    en_out.append(f"- STOP {s}. Please discontinue this medicine immediately.")
+                else:
+                    en_out.append(f"- STOP {s}. Please discontinue this medicine.")
 
         # 3. Emergency Red Flags - Paraphrased only from source-backed symptoms
         warns = cp.get("warning_signs", [])
         if warns:
-            en_out.append("\nEMERGENCY WARNING SIGNS - SEEK IMMEDIATE HOSPITAL CARE:")
             warn_items = []
             warn_blob = " ".join(warns).lower()
             if any(k in warn_blob for k in ["chest pain", "angina", "tightness"]):
@@ -70,7 +72,7 @@ class SubmissionGenerator:
                 for item in warn_items:
                     en_out.append(f"- {item}")
 
-        # 4. Nutrition - Paraphrased only from source-backed instructions
+        # 4. Nutrition - Paraphrased only from source-backed instructions (No spicy/boiled water additions)
         diet = cp.get("diet", [])
         if diet:
             diet_items = []
@@ -78,7 +80,7 @@ class SubmissionGenerator:
             if any(k in diet_blob for k in ["salt", "sodium"]):
                 diet_items.append("Eat food prepared with minimal salt")
             if any(k in diet_blob for k in ["oily", "fried", "fat"]):
-                diet_items.append("Stay away from heavy, spicy, or fried meals")
+                diet_items.append("Limit oily or fatty meals")
             if any(k in diet_blob for k in ["diabetic", "sugar", "sweets"]):
                 diet_items.append("Avoid sugary food items and adhere to diabetic meal plans")
             if any(k in diet_blob for k in ["protein", "dal", "eggs", "milk", "paneer"]):
@@ -86,7 +88,7 @@ class SubmissionGenerator:
             if any(k in diet_blob for k in ["soft", "semisolid"]):
                 diet_items.append("Choose soft, freshly prepared, gentle foods")
             if any(k in diet_blob for k in ["fluid", "water", "hydration"]):
-                diet_items.append("Drink adequate amounts of clean, boiled water")
+                diet_items.append("Drink adequate amounts of clean water")
             if diet_items:
                 en_out.append("\nNUTRITION AND MEAL GUIDELINES:")
                 for item in diet_items:
@@ -100,7 +102,7 @@ class SubmissionGenerator:
             if any(k in act_blob for k in ["heavy", "lifting"]):
                 act_items.append("Refrain from carrying or lifting heavy objects")
             if any(k in act_blob for k in ["rest", "bed rest"]):
-                act_items.append("Ensure adequate restful sleep and avoid exhaustion")
+                act_items.append("Ensure adequate rest")
             if any(k in act_blob for k in ["walk", "walking", "walker"]):
                 act_items.append("Take gentle, short walks indoors as your comfort allows")
             if any(k in act_blob for k in ["drive", "driving"]):
@@ -132,15 +134,17 @@ class SubmissionGenerator:
                 for item in wound_items:
                     en_out.append(f"- {item}")
 
-        # 7. Follow-up Appointments - ONLY if present in source
+        # 7. Follow-up Appointments - ONLY if present in source (No unsupported "bring prior records")
         follow_ups = cp.get("follow_ups", [])
         if follow_ups:
             en_out.append("\nYOUR NEXT HOSPITAL VISITS:")
             for f in follow_ups:
                 with_whom = f.get('with_whom') or 'Hospital Clinic'
-                en_out.append(f"- {f['date']}: Attend your scheduled review at {with_whom}. Please bring your prior records.")
+                en_out.append(f"- {f['date']}: Attend your scheduled review at {with_whom}.")
 
-        en_out.append("\nIf any instruction is unclear or if you feel unwell, contact your doctor or hospital team promptly.")
+        # Clearly separated general safety notice
+        en_out.append("\nGENERAL SAFETY NOTICE (Standard Hospital Information):")
+        en_out.append("If any instruction is unclear or if you feel unwell, contact your doctor or hospital team promptly.")
         en_out.append("Do not stop or alter your medications without clinical advice.")
 
         plain_text_en = "\n".join(en_out)
