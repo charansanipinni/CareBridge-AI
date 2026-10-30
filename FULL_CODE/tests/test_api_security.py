@@ -146,7 +146,7 @@ def test_api():
     print("=" * 60)
     print(f" RESULT: {passed}/{total} API security integration tests passed.")
     print("=" * 60)
-    return passed == total
+    assert passed == total, f"Only {passed}/{total} API security integration tests passed"
 
 if __name__ == "__main__":
     success = test_api()

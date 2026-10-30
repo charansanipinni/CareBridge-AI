@@ -725,4 +725,193 @@ def test_telugu_preservation_numbers_names_units():
     assert "mg" in te
     assert "mcg" in te
 
+# --------------------------------------------------------------------------
+# Dedicated Evaluator Audit Tests (Challenge H2 Comprehensive Requirements)
+# --------------------------------------------------------------------------
+
+def test_duplicate_records_detection_and_isolation(tmp_path):
+    """Verify duplicate record IDs are detected and counted during batch processing."""
+    import json
+    from scripts.batch_processor import process_dataset
+    
+    test_jsonl = tmp_path / "dups.jsonl"
+    with open(test_jsonl, "w", encoding="utf-8") as f:
+        f.write(json.dumps({"summary_id": "H2S-DUP01", "text": "DISCHARGE SUMMARY\nAdv: Tab. Calpol 650 TDS"}) + "\n")
+        f.write(json.dumps({"summary_id": "H2S-DUP01", "text": "DISCHARGE SUMMARY\nAdv: Tab. Calpol 650 TDS"}) + "\n")
+        f.write(json.dumps({"summary_id": "H2S-UNIQUE", "text": "DISCHARGE SUMMARY\nAdv: Tab. Pan 40 OD"}) + "\n")
+        
+    out_file = tmp_path / "out.jsonl"
+    report = process_dataset(
+        summaries_file=test_jsonl,
+        splits_file=None,
+        output_file=out_file,
+        report_file=None,
+        validate=False
+    )
+    assert report["total_records_discovered"] == 3
+    assert report["unique_summary_ids"] == 2
+    assert report["duplicate_summary_ids_count"] == 1
+    assert "H2S-DUP01" in report["duplicate_summary_ids"]
+
+def test_missing_medication_details_detection():
+    """Verify missing dose, frequency or duration are flagged for clinical review."""
+    validator = FaithfulnessValidator()
+    # Missing dose
+    plan_no_dose = {
+        "medicines": [{"name": "Metformin", "dose": "", "frequency": "BD", "duration": "1 month"}],
+        "stop_medicines": [],
+        "follow_ups": [],
+        "warning_signs": [],
+        "diet": [],
+        "activity": []
+    }
+    res = validator.validate_detailed(plan_no_dose, "ADV: Tab. Metformin BD")
+    assert not res["is_valid"]
+    assert any("missing dose" in f for f in res["flags"])
+
+def test_contradictory_clinical_instructions():
+    """Verify contradictory instructions (active vs discontinued) are caught."""
+    validator = FaithfulnessValidator()
+    plan_conflict = {
+        "medicines": [{"name": "Aspirin 75 mg", "dose": "75 mg", "frequency": "OD", "duration": "lifelong"}],
+        "stop_medicines": ["Aspirin 75 mg"],
+        "follow_ups": [],
+        "warning_signs": [],
+        "diet": [],
+        "activity": []
+    }
+    res = validator.validate_detailed(plan_conflict, "ADV: Stop Tab. Aspirin 75 mg due to GI bleed")
+    assert not res["is_valid"]
+    assert any("both active and stopped" in f for f in res["flags"])
+
+def test_unknown_abbreviations_no_hallucination():
+    """Verify abbreviations not in glossary are not fabricated into unwarranted clinical claims."""
+    from ai_pipeline.abbreviation_resolver import AbbreviationResolver
+    resolver = AbbreviationResolver()
+    # Official abbreviation is resolved
+    assert resolver.resolve("BD") is not None
+    assert resolver.resolve("STEMI") is not None
+    # Unknown fake abbreviation returns None, preventing false expansions
+    assert resolver.resolve("XYZQ999") is None
+    assert resolver.resolve("NONEXISTENT_MED_CODE") is None
+
+def test_unknown_drugs_handling(normalizer):
+    """Verify unknown drugs are safely isolated and do not invent generic mappings."""
+    gen = normalizer.get_generic("UnknownFakeDrugX123")
+    assert gen is None
+    purpose = normalizer.get_purpose("UnknownFakeDrugX123")
+    assert purpose == "prescribed medication for your recovery"
+
+def test_discontinued_medications_isolation(parser):
+    """Verify discontinued medications are never included in active discharge medicines."""
+    summary = """
+    ADV ON DISCHARGE:
+    1) Tab. Amlodipine 5 mg OD after breakfast lifelong
+    2) Stop Tab. Atenolol 50 mg immediately due to bradycardia
+    """
+    res = parser.parse(summary)
+    active_names = [m["name"].lower() for m in res["medicines"]]
+    assert any("amlodipine" in n for n in active_names)
+    assert not any("atenolol" in n for n in active_names)
+    assert len(res["stop_medicines"]) == 1
+    assert any("atenolol" in s.lower() for s in res["stop_medicines"])
+
+def test_incorrect_dosage_extraction_validation():
+    """Verify altered dosage or unit discrepancy fails clinical safety validation."""
+    validator = FaithfulnessValidator()
+    plan = {
+        "medicines": [{"name": "Amoxicillin", "dose": "250 mg", "frequency": "TDS", "duration": "5 days"}],
+        "stop_medicines": [],
+        "follow_ups": [],
+        "warning_signs": [],
+        "diet": [],
+        "activity": []
+    }
+    # Source actually prescribed 500 mg
+    res = validator.validate_detailed(plan, "ADV: Tab. Amoxicillin 500 mg TDS x 5 days")
+    assert not res["is_valid"]
+    assert any("altered" in f.lower() or "not grounded" in f.lower() for f in res["flags"])
+
+def test_missing_followup_dates_preservation(parser):
+    """Verify summaries without follow-up dates leave follow-ups empty without inventing dates."""
+    summary = """
+    ADV ON DISCHARGE:
+    1) Tab. Paracetamol 650 mg SOS for pain
+    Follow-up:
+    - Review as needed or in case of worsening symptoms
+    """
+    res = parser.parse(summary)
+    assert len(res["follow_ups"]) == 0
+
+def test_invalid_json_line_resilience(tmp_path):
+    """Verify malformed JSON input is caught and reported without crashing batch processing."""
+    from scripts.batch_processor import process_dataset
+    bad_jsonl = tmp_path / "bad.jsonl"
+    with open(bad_jsonl, "w", encoding="utf-8") as f:
+        f.write("{broken json line without closing bracket\n")
+        f.write('{"summary_id": "H2S-OK", "text": "DISCHARGE SUMMARY\\nAdv: Tab. Dolo 650 SOS"}\n')
+        
+    out_file = tmp_path / "out.jsonl"
+    report = process_dataset(
+        summaries_file=bad_jsonl,
+        splits_file=None,
+        output_file=out_file,
+        report_file=None,
+        validate=False
+    )
+    assert report["total_records_failed"] == 1
+    assert report["total_records_success"] == 1
+    assert len(report["failures"]) >= 1
+
+def test_empty_discharge_summary_handling(parser):
+    """Verify empty or whitespace-only discharge summary produces valid empty care plan."""
+    res = parser.parse("   \n\t  ")
+    assert res["medicines"] == []
+    assert res["stop_medicines"] == []
+    assert res["follow_ups"] == []
+    assert res["warning_signs"] == []
+
+def test_malformed_input_graceful_handling():
+    """Verify pipeline handles corrupted or non-clinical binary-like text gracefully."""
+    from ai_pipeline.submission_generator import SubmissionGenerator
+    gen = SubmissionGenerator()
+    garbage_text = "###@@@!!! 12345 \x00\x01\x02 random garbage text without structure"
+    plan = gen.generate_single_plan("H2S-GARBAGE", garbage_text)
+    assert plan["summary_id"] == "H2S-GARBAGE"
+    assert "care_plan" in plan
+    assert "translation" in plan
+    assert plan["care_plan"]["medicines"] == []
+
+def test_telugu_output_handling_evaluation_compliance():
+    """Verify Telugu output strictly adheres to script, length, and function word constraints."""
+    translator = TranslationService()
+    cp = {
+        "medicines": [
+            {"name": "Metformin (Glycomet)", "dose": "500 mg", "frequency": "BD", "timing": "after food", "duration": "1 month"},
+            {"name": "Atorvastatin (Atorva)", "dose": "20 mg", "frequency": "HS", "timing": "bedtime", "duration": "lifelong"}
+        ],
+        "stop_medicines": ["Glimepiride 2 mg"],
+        "warning_signs": ["Chest pain", "Fever > 100.4 F"],
+        "diet": ["Low-salt, diabetic diet"],
+        "activity": ["30 minutes walking"],
+        "wound_care": [],
+        "follow_ups": [{"date": "2026-05-15", "with_whom": "Cardiology OPD"}],
+    }
+    te_text = translator.generate_telugu(cp)
+    
+    # 1. Native Telugu script characters present
+    telugu_chars = [c for c in te_text if '\u0c00' <= c <= '\u0c7f']
+    assert len(telugu_chars) > 50
+    
+    # 2. Key required Telugu function words from evaluate.py
+    required_words = ["మరియు", "రోజుకు", "తీసుకోండి", "సార్లు", "తర్వాత", "ముందు"]
+    found_words = [w for w in required_words if w in te_text]
+    assert len(found_words) >= 3
+    
+    # 3. Medical specifics kept in Latin script with Western digits
+    assert "Metformin (Glycomet) 500 mg" in te_text
+    assert "Atorvastatin (Atorva) 20 mg" in te_text
+    assert "2026-05-15" in te_text
+
+
 

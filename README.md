@@ -48,17 +48,17 @@ cp .env.example .env
 
 ## How to run the tests
 
-Execute all automated unit and safety integration tests across both TypeScript and Python pipelines (85 automated tests total):
+Execute all automated unit and safety integration tests across both TypeScript and Python pipelines (97 automated tests total):
 
 ```bash
-# 1. Run Python AI Pipeline Safety Tests (41/41 passing)
+# 1. Run Python AI Pipeline Safety Tests (53/53 passing)
 python -m pytest FULL_CODE/tests/test_pipeline.py
 
 # 2. Run TypeScript UI & Clinical Faithfulness Tests (44/44 passing)
 npm test
 ```
 
-**Single Command to run all 85 tests:**
+**Single Command to run all 97 tests:**
 ```bash
 npm test && python -m pytest FULL_CODE/tests/test_pipeline.py
 ```

@@ -10,6 +10,7 @@ Team: AVENGERS | Healthcare Track H2 | TalentAP Mega Hackathon 2026
 import argparse
 import json
 import os
+import re
 import sys
 import time
 import tracemalloc
@@ -26,6 +27,52 @@ sys.path.insert(0, str(FULL_CODE_DIR))
 
 from ai_pipeline.submission_generator import SubmissionGenerator
 from ai_pipeline.faithfulness_validator import FaithfulnessValidator
+
+def classify_condition(text: str) -> str:
+    """Classify summary into official condition groups: maternity, postop, cardiac, respiratory, diabetes."""
+    header = "\n".join([l for l in text.split("\n") if l.strip()][:6]).lower()
+    t_low = text.lower()
+    
+    if any(k in header for k in ["obstetrics", "gynaecology", "gynae", "obg", "maternity"]):
+        return "maternity"
+    elif any(k in header for k in ["surgery", "orthopaedics", "ortho", "surgical"]):
+        return "postop"
+    elif any(k in header for k in ["cardiology", "cardiac", "ccu", "coronary"]):
+        return "cardiac"
+    elif any(k in header for k in ["pulmonary", "pulmonology", "chest", "respiratory"]):
+        return "respiratory"
+    else:
+        # Dept is General Medicine / Medical Unit
+        diag_m = re.search(r"(?:diagnosis|dx)[^\n]*?:?\s*([^\n]+(?:\n[ \t]*[-*•\d\.\)][^\n]+)*)", t_low)
+        diag = diag_m.group(0) if diag_m else t_low[:300]
+        
+        diag_lines = [l.strip() for l in diag.split("\n") if l.strip() and not l.strip().lower().startswith(("diagnosis", "dx"))]
+        first_diag = diag_lines[0] if diag_lines else diag
+        
+        if any(k in first_diag for k in ["copd", "asthma", "pneumonia", "tuberculosis", "tb", "bronch", "effusion"]):
+            return "respiratory"
+        elif any(k in first_diag for k in ["stemi", "nstemi", "coronary", "cad", "angina", "infarction", "heart failure", "ccf"]):
+            return "cardiac"
+        elif any(k in first_diag for k in ["type 2 diabetes", "type 1 diabetes", "t2dm", "t1dm", "dka", "hyperglyc", "diabetic"]):
+            return "diabetes"
+        elif any(k in diag for k in ["copd", "asthma", "pneumonia", "tuberculosis", "tb"]):
+            return "respiratory"
+        elif any(k in diag for k in ["stemi", "nstemi", "coronary", "cad", "angina", "infarction", "heart failure"]):
+            return "cardiac"
+        elif any(k in diag for k in ["type 2 diabetes", "type 1 diabetes", "t2dm", "dka", "diabetic"]):
+            return "diabetes"
+        elif any(k in t_low for k in ["copd", "asthma", "pneumonia", "tuberculosis"]):
+            return "respiratory"
+        elif any(k in t_low for k in ["stemi", "nstemi", "coronary", "cad", "angina"]):
+            return "cardiac"
+        elif any(k in t_low for k in ["diabetes", "t2dm", "dka", "hyperglyc"]):
+            return "diabetes"
+        elif any(k in t_low for k in ["cesarean", "lscs", "delivery", "maternity", "gravida"]):
+            return "maternity"
+        elif any(k in t_low for k in ["appendectomy", "cholecystectomy", "hernia", "postop", "orif", "fracture"]):
+            return "postop"
+        else:
+            return "general_medical"
 
 def process_dataset(
     summaries_file: Path,
@@ -105,20 +152,9 @@ def process_dataset(
 
                 total_eligible += 1
 
-                # Condition detection heuristic
-                t_lower = text.lower()
-                if any(w in t_lower for w in ["cesarean", "lscs", "delivery", "maternity", "gravida"]):
-                    condition_counts["maternity"] += 1
-                elif any(w in t_lower for w in ["stemi", "nstemi", "coronary", "cad", "angina", "cardiac"]):
-                    condition_counts["cardiac"] += 1
-                elif any(w in t_lower for w in ["copd", "asthma", "pneumonia", "respiratory", "bronch"]):
-                    condition_counts["respiratory"] += 1
-                elif any(w in t_lower for w in ["appendectomy", "cholecystectomy", "hernia", "postop", "orif", "fracture"]):
-                    condition_counts["postop"] += 1
-                elif any(w in t_lower for w in ["diabet", "hba1c", "dka", "hyperglyc"]):
-                    condition_counts["diabetes"] += 1
-                else:
-                    condition_counts["general_medical"] += 1
+                # Condition detection
+                cond_group = classify_condition(text)
+                condition_counts[cond_group] += 1
 
                 # Generate Plan
                 try:
