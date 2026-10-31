@@ -170,7 +170,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               title="Print Care Sheet or Download as PDF"
             >
               <Printer className="w-3.5 h-3.5 mr-1.5 text-teal-400" />
-              <span>{interfaceLanguage === 'te' ? 'కేర్ షీట్ ప్రింట్ / PDF' : 'Print Care Sheet'}</span>
+              <span>{interfaceLanguage === 'te' ? 'కేర్ షీట్ ప్రింట్ / PDF' : 'Print / Download PDF'}</span>
             </button>
           )}
 

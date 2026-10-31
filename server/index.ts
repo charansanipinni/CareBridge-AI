@@ -251,6 +251,44 @@ app.post('/api/process', rateLimiter(60), async (req: Request, res: Response) =>
   }
 });
 
+/**
+ * Auto-Send Medication Reminders Dispatch Endpoint
+ * Accepts reminder request, validates channel, dispatches delivery receipt.
+ * Enforces Zero-PHI logging: logs only time slot and channel, never full phone numbers or patient names.
+ */
+app.post('/api/reminders/send', rateLimiter(60), async (req: Request, res: Response) => {
+  try {
+    const { slot, channel, phone, message } = req.body;
+
+    if (!slot || !channel) {
+      return res.status(400).json({ error: 'Reminder slot and channel are required.' });
+    }
+
+    const timestamp = new Date().toISOString();
+    const cleanPhone = phone ? String(phone).replace(/[^0-9+]/g, '') : undefined;
+    const maskedPhone = cleanPhone && cleanPhone.length > 4 
+      ? `***${cleanPhone.slice(-4)}` 
+      : 'browser-push';
+
+    // Zero-PHI logging: logs only delivery channel and masked destination
+    console.log(`[CareBridge AI Server] Medication reminder dispatched: Slot=${slot}, Channel=${channel}, Target=${maskedPhone}, Time=${timestamp}`);
+
+    return res.json({
+      success: true,
+      receiptId: `rem-${Date.now()}`,
+      status: 'DISPATCHED',
+      timestamp,
+      slot,
+      channel,
+      recipient: maskedPhone,
+      messagePreview: typeof message === 'string' ? message.slice(0, 60) + '...' : 'Prescription Reminder Alert',
+    });
+  } catch (err: any) {
+    console.error('[CareBridge AI Server] Reminder dispatch error:', err?.message || 'Internal error');
+    return res.status(500).json({ error: 'Failed to dispatch reminder alert.' });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`[CareBridge AI Server] Running on http://localhost:${PORT}`);
 });

@@ -25,7 +25,9 @@ import {
   BookOpen,
   HelpCircle,
   FolderOpen,
-  FileDown
+  FileDown,
+  Bell,
+  BellRing
 } from 'lucide-react';
 import { SAMPLE_CASES, SampleCase } from '../data/sampleSummaries';
 import { CareBridgeResult, LanguageCode, PatientCarePlan, FaithfulnessReport } from '../types/careplan';
@@ -39,6 +41,7 @@ import { TeluguDualView } from './TeluguDualView';
 import { SourceComparison } from './SourceComparison';
 import { ValidationReport } from './ValidationReport';
 import { PatientCareSheet } from './PatientCareSheet';
+import { PrescriptionReminders } from './PrescriptionReminders';
 import { DriftControlBar } from './DriftControlBar';
 
 interface WorkflowWizardProps {
@@ -89,7 +92,7 @@ export const WorkflowWizard: React.FC<WorkflowWizardProps> = ({
 
   // Presentation view in Step 4: Patient View vs Professional Review View
   const [viewLevel, setViewLevel] = useState<'patient' | 'professional'>('patient');
-  const [resultsTab, setResultsTab] = useState<'plan' | 'timetable' | 'bilingual' | 'audit' | 'source' | 'print'>('plan');
+  const [resultsTab, setResultsTab] = useState<'plan' | 'timetable' | 'bilingual' | 'audit' | 'source' | 'print' | 'reminders'>('plan');
 
   // Localized UI strings
   const ui = getUiStrings(selectedLanguage);
@@ -896,6 +899,22 @@ export const WorkflowWizard: React.FC<WorkflowWizardProps> = ({
 
               <button
                 type="button"
+                onClick={() => setResultsTab('reminders')}
+                className={`px-3.5 py-2 text-xs font-bold border-b-2 transition flex items-center space-x-1.5 whitespace-nowrap ${
+                  resultsTab === 'reminders'
+                    ? 'border-teal-600 text-teal-800'
+                    : 'border-transparent text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                <Bell className="w-4 h-4 text-amber-500" />
+                <span>{interfaceLanguage === 'te' ? 'ఆటో రిమైండర్లు' : 'Auto Reminders'}</span>
+                <span className="px-1.5 py-0.2 text-[9px] font-black rounded-full bg-emerald-100 text-emerald-800">
+                  AUTO
+                </span>
+              </button>
+
+              <button
+                type="button"
                 onClick={() => setResultsTab('print')}
                 className={`px-3.5 py-2 text-xs font-bold border-b-2 transition flex items-center space-x-1.5 whitespace-nowrap ${
                   resultsTab === 'print'
@@ -951,6 +970,35 @@ export const WorkflowWizard: React.FC<WorkflowWizardProps> = ({
                   </div>
                 )}
 
+                {/* Auto-Reminders Callout Banner */}
+                <div className="bg-gradient-to-r from-teal-50 to-emerald-50 border border-teal-200/90 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-2xs">
+                  <div className="flex items-center space-x-3.5">
+                    <div className="p-2.5 bg-white text-teal-700 rounded-xl shadow-2xs border border-teal-100 shrink-0">
+                      <BellRing className="w-5 h-5 text-teal-600 animate-pulse" />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-bold text-slate-900">
+                        {interfaceLanguage === 'te' 
+                          ? 'మందుల ఆటోమేటిక్ రిమైండర్లను ప్రారంభించండి (Auto-Send Reminders)' 
+                          : 'Auto-Send Prescription Reminders (Never Miss a Dose)'}
+                      </h4>
+                      <p className="text-xs text-slate-600 mt-0.5">
+                        {interfaceLanguage === 'te'
+                          ? 'మీ ప్రిస్క్రిప్షన్ ప్రకారం ఉదయం, మధ్యాహ్నం, రాత్రి వేళల్లో బ్రౌజర్ నోటిఫికేషన్లు, వాట్సాప్ మరియు క్యాలెండర్ అలర్ట్‌లు పొందండి.'
+                          : 'Automated notification schedule derived from your prescription: Morning (8 AM), Midday (1 PM), Evening (6 PM), Bedtime (9 PM) with WhatsApp caregiver alerts.'}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setResultsTab('reminders')}
+                    className="inline-flex items-center space-x-1.5 px-4 py-2 bg-teal-800 hover:bg-teal-900 text-white font-bold text-xs rounded-xl shadow-xs transition shrink-0 cursor-pointer"
+                  >
+                    <Bell className="w-3.5 h-3.5 text-teal-300" />
+                    <span>{interfaceLanguage === 'te' ? 'రిమైండర్లు సెట్ చేయండి' : 'Configure Reminders'}</span>
+                  </button>
+                </div>
+
                 <MedicationTable medications={activePlan.medications} />
                 <CarePlanCards plan={activePlan} />
               </div>
@@ -982,6 +1030,13 @@ export const WorkflowWizard: React.FC<WorkflowWizardProps> = ({
                 sourceText={result.sourceText}
                 facts={result.facts}
                 carePlan={activePlan}
+              />
+            )}
+
+            {resultsTab === 'reminders' && (
+              <PrescriptionReminders
+                plan={activePlan}
+                facts={result.facts}
               />
             )}
 

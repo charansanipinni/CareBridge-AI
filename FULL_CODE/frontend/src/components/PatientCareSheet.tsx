@@ -340,26 +340,26 @@ export const PatientCareSheet: React.FC<PatientCareSheetProps> = ({
   if (isPrintModal) {
     return (
       <div 
-        className="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-xs overflow-y-auto p-2 sm:p-4 md:py-8 flex justify-center items-start"
+        className="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-xs flex flex-col justify-center items-center p-2 sm:p-4 md:py-6 overflow-hidden"
         onClick={(e) => {
           if (e.target === e.currentTarget && (onClose || onBack)) {
             (onClose || onBack)!();
           }
         }}
       >
-        <div className="relative w-full max-w-4xl my-2 sm:my-4 bg-white rounded-2xl shadow-2xl overflow-hidden border border-slate-300">
-          {/* STICKY ACTION HEADER BAR - ALWAYS VISIBLE AT THE TOP */}
-          <div className="sticky top-0 z-30 no-print flex flex-wrap items-center justify-between gap-3 bg-slate-900 text-white px-4 py-3 sm:px-6 sm:py-3.5 shadow-md border-b border-slate-800">
+        <div className="relative w-full max-w-4xl max-h-[92vh] flex flex-col bg-white rounded-2xl shadow-2xl border border-slate-300 overflow-hidden">
+          {/* PINNED ACTION HEADER BAR - ALWAYS VISIBLE AT THE TOP */}
+          <div className="shrink-0 no-print flex flex-wrap items-center justify-between gap-3 bg-slate-900 text-white px-4 py-3 sm:px-6 sm:py-3.5 shadow-md border-b border-slate-800">
             <div className="flex items-center space-x-2 sm:space-x-3">
               {(onBack || onClose) && (
                 <button
                   type="button"
                   onClick={onBack || onClose}
-                  className="inline-flex items-center space-x-1.5 px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded-xl transition border border-slate-600 hover:border-teal-400 shadow-xs cursor-pointer"
+                  className="inline-flex items-center space-x-1.5 px-3 py-1.5 sm:px-3.5 sm:py-2 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded-xl transition border border-slate-600 hover:border-teal-400 shadow-xs cursor-pointer"
                   title={isTelugu ? 'సంరక్షణ ప్రణాళికకు తిరిగి వెళ్లండి' : 'Back to Care Plan'}
                 >
                   <ArrowLeft className="w-4 h-4 text-teal-400" />
-                  <span>{isTelugu ? '← వెనుకకు' : '← Back to Care Plan'}</span>
+                  <span>{isTelugu ? '← వెనుకకు' : '← Back'}</span>
                 </button>
               )}
               <div className="flex items-center space-x-2">
@@ -393,7 +393,7 @@ export const PatientCareSheet: React.FC<PatientCareSheetProps> = ({
                 type="button"
                 disabled={isGeneratingPdf}
                 onClick={handleDownloadPDF}
-                className={`px-4 py-2 text-white font-bold text-xs rounded-xl shadow-sm flex items-center space-x-1.5 transition cursor-pointer ring-1 ring-emerald-400/50 ${
+                className={`px-3.5 sm:px-4 py-1.5 sm:py-2 text-white font-bold text-xs rounded-xl shadow-sm flex items-center space-x-1.5 transition cursor-pointer ring-1 ring-emerald-400/50 ${
                   isGeneratingPdf
                     ? 'bg-emerald-800 opacity-80 cursor-wait'
                     : 'bg-emerald-600 hover:bg-emerald-500'
@@ -427,20 +427,20 @@ export const PatientCareSheet: React.FC<PatientCareSheetProps> = ({
           </div>
 
           {downloadNotice && (
-            <div className="no-print bg-teal-800 text-teal-50 px-4 py-2.5 text-xs font-semibold flex items-center space-x-2 border-b border-teal-700">
+            <div className="shrink-0 no-print bg-teal-800 text-teal-50 px-4 py-2.5 text-xs font-semibold flex items-center space-x-2 border-b border-teal-700">
               <CheckCircle className="w-4 h-4 text-teal-300 shrink-0" />
               <span>{downloadNotice}</span>
             </div>
           )}
 
           {downloadError && (
-            <div className="no-print bg-rose-800 text-rose-50 px-4 py-2.5 text-xs font-semibold flex items-center space-x-2 border-b border-rose-700">
+            <div className="shrink-0 no-print bg-rose-800 text-rose-50 px-4 py-2.5 text-xs font-semibold flex items-center space-x-2 border-b border-rose-700">
               <AlertTriangle className="w-4 h-4 text-rose-300 shrink-0" />
               <span>{downloadError}</span>
             </div>
           )}
 
-          <div className="p-3 sm:p-6 bg-slate-100">
+          <div className="overflow-y-auto p-3 sm:p-6 bg-slate-100 grow">
             {sheetContent}
           </div>
         </div>
