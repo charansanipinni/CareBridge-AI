@@ -7,8 +7,11 @@
 export interface SampleCase {
   id: string;
   title: string;
+  titleTe?: string;
   subtitle: string;
+  subtitleTe?: string;
   badge: string;
+  badgeTe?: string;
   category: 'BENCHMARK' | 'POST_OP' | 'CARDIAC' | 'DIABETES' | 'RESPIRATORY' | 'MATERNITY' | 'ADVERSARIAL';
   sourceText: string;
   description: string;
@@ -18,11 +21,14 @@ export interface SampleCase {
 export const SAMPLE_CASES: SampleCase[] = [
   {
     id: 'fictional-demo-case',
-    title: '1. Standard Fictional Benchmark',
-    subtitle: 'Section 10 prompt benchmark with relative follow-up and deferred warnings',
-    badge: 'Prompt Benchmark',
+    title: '1. Simple Hospital Recovery',
+    titleTe: '1. సాధారణ ఆసుపత్రి కోలుకోవడం',
+    subtitle: 'Basic home medicine, keeping dressing dry, and 7-day follow-up',
+    subtitleTe: 'సాధారణ మందులు, బ్యాండేజ్ జాగ్రత్తలు మరియు 7 రోజుల తర్వాత చెకప్',
+    badge: 'General Care',
+    badgeTe: 'సాధారణ సంరక్షణ',
     category: 'BENCHMARK',
-    description: 'Tests strict non-invention of clinical facts, relative 7-day follow-up identification, and zero invented warning signs.',
+    description: 'Basic recovery with one home medicine, dressing instructions, and scheduled 7-day follow-up.',
     sourceText: `FICTIONAL SOFTWARE TEST CASE — NOT A REAL PRESCRIPTION
 
 Reason for admission: Recovery after a minor surgical procedure.
@@ -41,11 +47,14 @@ Attend the surgical outpatient department in seven days. The exact calendar date
   },
   {
     id: 'laparoscopic-cholecystectomy',
-    title: '2. Post-Operative Recovery (General Surgery)',
-    subtitle: 'Gallbladder removal recovery with specific wound care & diet',
-    badge: 'Post-Op Surgery',
+    title: '2. Gallbladder Surgery Recovery',
+    titleTe: '2. పిత్తాశయ శస్త్రచికిత్స సంరక్షణ',
+    subtitle: 'Pain relief, antibiotics, safe sponge bathing, and light walking',
+    subtitleTe: 'నొప్పి మందులు, స్పాంజ్ స్నానం, తేలికపాటి నడక మరియు తక్కువ నూనె ఆహారం',
+    badge: 'Surgery Recovery',
+    badgeTe: 'శస్త్రచికిత్స సంరక్షణ',
     category: 'POST_OP',
-    description: 'Tests multi-medication extraction, wound dressing care, low-fat diet restrictions, lifting limits, and scheduled OPD follow-up.',
+    description: 'Post-surgery recovery with pain tablets, antibiotic course, wound protection, and low-fat diet.',
     sourceText: `DISCHARGE SUMMARY - AP GENERAL HOSPITAL
 PATIENT ID: SYNTH-89241
 ADMISSION DIAGNOSIS: Acute cholecystitis status post laparoscopic cholecystectomy.
@@ -76,11 +85,14 @@ Review in General Surgery Outpatient Department on 28-October-2026 at 10:30 AM w
   },
   {
     id: 'cardiac-metabolic',
-    title: '3. Cardiac Care & Hypertension',
-    subtitle: 'Chronic condition stabilization with explicit meal timings',
-    badge: 'Cardiology',
+    title: '3. High Blood Pressure & Heart Care',
+    titleTe: '3. అధిక రక్తపోటు & గుండె సంరక్షణ',
+    subtitle: 'Daily BP tablets, morning dosage, low-salt diet, and doctor visit',
+    subtitleTe: 'రోజూ వేసుకునే బీపీ మందులు, ఉదయం వేళలు, తక్కువ ఉప్పు ఆహారం మరియు చెకప్',
+    badge: 'Heart & BP',
+    badgeTe: 'గుండె & బీపీ',
     category: 'CARDIAC',
-    description: 'Tests timing relation to meals (e.g. Metformin with dinner, Atorvastatin at bedtime), hypoglycemia alerts, and relative follow-up.',
+    description: 'Managing daily blood pressure and heart tablets with meals, light walking, and low-salt diet.',
     sourceText: `DISCHARGE SUMMARY - METROPOLITAN CARDIAC CARE
 PATIENT ID: SYNTH-CARD-4412
 REASON FOR ADMISSION: Uncontrolled Hypertension and Type 2 Diabetes stabilization.
@@ -106,11 +118,14 @@ Cardiology & Endocrine Clinic review in 14 days for repeat blood pressure and fa
   },
   {
     id: 'diabetes-glycemic',
-    title: '4. Diabetes Stabilization & Hypoglycemia',
-    subtitle: 'Insulin regimen, target glucose ranges, and emergency carbohydrate rescue',
-    badge: 'Endocrinology',
+    title: '4. Diabetes & Blood Sugar Care',
+    titleTe: '4. షుగర్ వ్యాధి సంరక్షణ',
+    subtitle: 'Sugar tablets before meals, regular walking, and dizzy care',
+    subtitleTe: 'భోజనానికి ముందు షుగర్ మాత్రలు, నడక మరియు కళ్ళు తిరిగితే తీసుకోవాల్సిన జాగ్రత్తలు',
+    badge: 'Diabetes & Sugar',
+    badgeTe: 'షుగర్ సంరక్షణ',
     category: 'DIABETES',
-    description: 'Tests subcutaneous route, meal-related dosing, fasting glucose targets, and hypoglycemia emergency protocol.',
+    description: 'Taking sugar tablets with regular meals, morning walking, and quick sugar intake if dizzy.',
     sourceText: `DISCHARGE SUMMARY - AP DIABETES & ENDOCRINE CENTRE
 PATIENT ID: SYNTH-DIAB-773
 REASON FOR ADMISSION: Hyperglycemic episode secondary to Type 2 Diabetes Mellitus.
@@ -136,11 +151,14 @@ Review in Endocrinology OPD in 14 days with self-monitored fasting blood glucose
   },
   {
     id: 'respiratory-copd',
-    title: '5. Respiratory Care (COPD & Asthma Recovery)',
-    subtitle: 'Inhaled therapies via spacer, environmental precautions, and dyspnea warnings',
-    badge: 'Pulmonology',
+    title: '5. Breathing & Inhaler Care',
+    titleTe: '5. శ్వాస & ఇన్‌హేలర్ సంరక్షణ',
+    subtitle: 'Inhaler use, mouth rinsing, and avoiding smoke, dust & cold air',
+    subtitleTe: 'ఇన్‌హేలర్ వాడకం, నోరు శుభ్రం చేసుకోవడం మరియు దుమ్ము, పొగకు దూరంగా ఉండటం',
+    badge: 'Breathing Care',
+    badgeTe: 'శ్వాస సంరక్షణ',
     category: 'RESPIRATORY',
-    description: 'Tests inhaled route, spacer technique instructions, environmental allergen/smoke avoidance, and peak-flow drop red flags.',
+    description: 'Using an inhaler for easier breathing, rinsing mouth after spray, and protecting from dust & smoke.',
     sourceText: `DISCHARGE SUMMARY - PULMONARY & CHEST HOSPITAL
 PATIENT ID: SYNTH-RESP-5510
 REASON FOR ADMISSION: Acute exacerbation of Chronic Obstructive Pulmonary Disease (COPD).
@@ -167,11 +185,14 @@ Review in Pulmonology Clinic in 10 days for repeat spirometry and inhaler techni
   },
   {
     id: 'maternity-cesarean',
-    title: '6. Maternity & Post-Cesarean Recovery',
-    subtitle: 'Postpartum maternal recovery, wound hygiene, newborn care, and lochia warnings',
-    badge: 'Obstetrics',
+    title: '6. Mother Care (After C-Section)',
+    titleTe: '6. సిజేరియన్ ప్రసవం తర్వాత తల్లి సంరక్షణ',
+    subtitle: 'Pain relief, iron tablets, baby feeding, and resting at home',
+    subtitleTe: 'నొప్పి మాత్రలు, ఐరన్ & కాల్షియం, కుట్ల సంరక్షణ మరియు బిడ్డకు పాలివ్వడం',
+    badge: 'Mother & Baby',
+    badgeTe: 'తల్లి & బిడ్డ',
     category: 'MATERNITY',
-    description: 'Tests postpartum analgesics, iron supplementation, incision care, breastfeeding hydration, and postpartum hemorrhage warning signs.',
+    description: 'Caring for a new mother after delivery with pain relief, iron supplements, and gentle recovery.',
     sourceText: `DISCHARGE SUMMARY - MOTHER & CHILD GENERAL HOSPITAL
 PATIENT ID: SYNTH-MAT-3382
 REASON FOR ADMISSION: Elective lower segment Cesarean Section delivery of healthy full-term infant.
@@ -201,11 +222,14 @@ Review in Obstetrics & Postnatal Clinic in 7 days for wound check and pediatric 
   },
   {
     id: 'adversarial-safety-audit',
-    title: '7. Safety Trap & Clinical Contradiction',
-    subtitle: 'Demonstrates Faithfulness Engine detecting discrepancies & contradictions',
-    badge: 'Safety Engine Test',
+    title: '7. Unclear Doctor Note Example',
+    titleTe: '7. అస్పష్టమైన సూచనల ఉదాహరణ',
+    subtitle: 'Shows how our system safely flags confusing or incomplete doctor notes',
+    subtitleTe: 'అస్పష్టమైన వైద్య సూచనలను మా వ్యవస్థ ఎలా గుర్తిస్తుందో చూపే ఉదాహరణ',
+    badge: 'Doctor Review',
+    badgeTe: 'డాక్టర్ సమీక్ష',
     category: 'ADVERSARIAL',
-    description: 'Contains an intentional contradictory dosing instruction and missing stop date. Proves CareBridge AI never falsely displays a green "Verified" badge on unsafe data.',
+    description: 'Demonstrates our clinical safety audit flagging unclear doctor notes so no errors reach the patient.',
     isAdversarial: true,
     sourceText: `SYNTHETIC DISCHARGE AUDIT - SAFETY VERIFICATION CASE
 REASON FOR ADMISSION: Observational evaluation for non-cardiac chest discomfort.

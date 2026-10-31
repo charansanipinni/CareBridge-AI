@@ -1,5 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { downloadCarePlanJSON, printCarePlanElement } from '../utils/exportUtils';
+import { 
+  downloadCarePlanJSON, 
+  printCarePlanElement, 
+  getCarePlanJSONString, 
+  generateDirectNativePDF 
+} from '../utils/exportUtils';
 import { jsPDF } from 'jspdf';
 import { PatientCarePlan, ClinicalFacts, FaithfulnessReport } from '../types/careplan';
 
@@ -268,6 +273,15 @@ describe('CareBridge AI - Export & Print Engine', () => {
 
       globalThis.Blob = OriginalBlob;
     });
+
+    it('generates formatted JSON string directly via getCarePlanJSONString', () => {
+      const jsonStr = getCarePlanJSONString(samplePlan, sampleFacts, sampleReport);
+      const parsed = JSON.parse(jsonStr);
+      expect(parsed.product).toBe('CareBridge AI');
+      expect(parsed.patientId).toBe('SYNTH-89241');
+      expect(parsed.carePlan.medications.length).toBe(2);
+      expect(parsed.verificationToken).toContain('CB-SYNTH-89');
+    });
   });
 
   describe('2. A4 PDF Generation (jsPDF)', () => {
@@ -300,6 +314,12 @@ describe('CareBridge AI - Export & Print Engine', () => {
 
       const output = doc.output('arraybuffer');
       expect(output.byteLength).toBeGreaterThan(1500);
+    });
+
+    it('generates direct native vector PDF without errors using generateDirectNativePDF', () => {
+      expect(() => {
+        generateDirectNativePDF('CareBridge_Test_Prescription.pdf', samplePlan, sampleFacts, sampleReport);
+      }).not.toThrow();
     });
   });
 

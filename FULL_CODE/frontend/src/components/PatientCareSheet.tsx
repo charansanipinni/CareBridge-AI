@@ -13,10 +13,18 @@ import {
   QrCode,
   FileCode,
   ArrowLeft,
-  FileDown
+  FileDown,
+  Copy,
+  Check
 } from 'lucide-react';
 import { PatientCarePlan, FaithfulnessReport, ClinicalFacts } from '../types/careplan';
-import { downloadCarePlanJSON, downloadPrescriptionPDF, printCarePlanElement } from '../utils/exportUtils';
+import { 
+  downloadCarePlanJSON, 
+  downloadPrescriptionPDF, 
+  printCarePlanElement, 
+  getCarePlanJSONString,
+  generateDirectNativePDF
+} from '../utils/exportUtils';
 
 interface PatientCareSheetProps {
   plan: PatientCarePlan;
@@ -39,6 +47,8 @@ export const PatientCareSheet: React.FC<PatientCareSheetProps> = ({
   const [downloadNotice, setDownloadNotice] = useState<string | null>(null);
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState<boolean>(false);
+  const [showJsonModal, setShowJsonModal] = useState<boolean>(false);
+  const [copiedJson, setCopiedJson] = useState<boolean>(false);
 
   const isTelugu = plan.language === 'te';
   const isVerified = report.overallStatus === 'VERIFIED_CONSISTENT';
@@ -64,7 +74,7 @@ export const PatientCareSheet: React.FC<PatientCareSheetProps> = ({
     setDownloadNotice(null);
 
     try {
-      await downloadPrescriptionPDF(sheetRef.current, 'CareBridge_Prescription.pdf');
+      await downloadPrescriptionPDF(sheetRef.current, 'CareBridge_Prescription.pdf', plan, facts, report);
       setDownloadNotice(
         isTelugu 
           ? 'CareBridge_Prescription.pdf ఫైల్ విజయవంతంగా డౌన్‌లోడ్ చేయబడింది.' 
@@ -72,15 +82,37 @@ export const PatientCareSheet: React.FC<PatientCareSheetProps> = ({
       );
       setTimeout(() => setDownloadNotice(null), 4000);
     } catch (err: any) {
-      console.error('PDF generation error:', err);
-      setDownloadError(
-        isTelugu 
-          ? 'PDF తయారీ విఫలమైంది. దయచేసి మళ్ళీ ప్రయత్నించండి.' 
-          : 'Failed to generate PDF. Please try again.'
-      );
-      setTimeout(() => setDownloadError(null), 5000);
+      console.warn('Canvas PDF generation error, using direct vector PDF:', err);
+      try {
+        generateDirectNativePDF('CareBridge_Prescription.pdf', plan, facts, report);
+        setDownloadNotice(
+          isTelugu 
+            ? 'CareBridge_Prescription.pdf ఫైల్ విజయవంతంగా డౌన్‌లోడ్ చేయబడింది.' 
+            : 'CareBridge_Prescription.pdf downloaded successfully.'
+        );
+        setTimeout(() => setDownloadNotice(null), 4000);
+      } catch (fallbackErr: any) {
+        console.error('Direct vector PDF generation failed:', fallbackErr);
+        setDownloadError(
+          isTelugu 
+            ? 'PDF తయారీ విఫలమైంది. దయచేసి మళ్ళీ ప్రయత్నించండి.' 
+            : 'Failed to generate PDF. Please try again.'
+        );
+        setTimeout(() => setDownloadError(null), 5000);
+      }
     } finally {
       setIsGeneratingPdf(false);
+    }
+  };
+
+  const handleCopyJSON = async () => {
+    try {
+      const jsonStr = getCarePlanJSONString(plan, facts, report);
+      await navigator.clipboard.writeText(jsonStr);
+      setCopiedJson(true);
+      setTimeout(() => setCopiedJson(false), 2500);
+    } catch (err) {
+      console.error('Clipboard error:', err);
     }
   };
 
@@ -336,6 +368,74 @@ export const PatientCareSheet: React.FC<PatientCareSheetProps> = ({
     </div>
   );
 
+  const jsonModalElement = showJsonModal && (
+    <div 
+      className="fixed inset-0 z-60 bg-slate-900/80 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) setShowJsonModal(false);
+      }}
+    >
+      <div className="relative w-full max-w-2xl bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
+        <div className="flex items-center justify-between p-4 border-b border-slate-800 bg-slate-950">
+          <div className="flex items-center space-x-2">
+            <FileCode className="w-5 h-5 text-teal-400" />
+            <div>
+              <h3 className="text-sm font-bold text-white">
+                {isTelugu ? 'రోగి సంరక్షణ ప్రణాళిక JSON డేటా' : 'CareBridge Care Plan Data (JSON)'}
+              </h3>
+              <p className="text-[11px] text-slate-400">
+                {isTelugu ? 'ఆసుపత్రి డిశ్చార్జ్ ధృవీకరించిన డేటా నిర్మాణం' : 'Structured, validated clinical data ready for EMR integration'}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center space-x-2">
+            <button
+              type="button"
+              onClick={handleCopyJSON}
+              className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded-xl border border-slate-600 transition flex items-center space-x-1.5 cursor-pointer"
+              title="Copy JSON to clipboard"
+            >
+              {copiedJson ? (
+                <>
+                  <Check className="w-3.5 h-3.5 text-emerald-400" />
+                  <span className="text-emerald-400">{isTelugu ? 'కాపీ చేయబడింది!' : 'Copied!'}</span>
+                </>
+              ) : (
+                <>
+                  <Copy className="w-3.5 h-3.5 text-slate-300" />
+                  <span>{isTelugu ? 'కాపీ చేయండి' : 'Copy JSON'}</span>
+                </>
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={handleDownloadJSON}
+              className="px-3 py-1.5 bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold rounded-xl shadow-xs transition flex items-center space-x-1.5 cursor-pointer"
+              title="Download CareBridge_Care_Plan.json"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span>{isTelugu ? 'ఫైల్ డౌన్‌లోడ్' : 'Download File'}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowJsonModal(false)}
+              className="p-1.5 text-slate-400 hover:text-white rounded-lg transition cursor-pointer"
+              title="Close"
+              aria-label="Close JSON viewer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+
+        <div className="p-4 overflow-y-auto bg-slate-950 font-mono text-xs text-teal-300 leading-relaxed">
+          <pre className="whitespace-pre-wrap">{getCarePlanJSONString(plan, facts, report)}</pre>
+        </div>
+      </div>
+    </div>
+  );
+
   // If used as full-screen print preview modal
   if (isPrintModal) {
     return (
@@ -373,11 +473,11 @@ export const PatientCareSheet: React.FC<PatientCareSheetProps> = ({
             <div className="flex items-center space-x-1.5 sm:space-x-2">
               <button
                 type="button"
-                onClick={handleDownloadJSON}
-                className="px-2.5 sm:px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs rounded-xl shadow-xs flex items-center space-x-1 transition border border-slate-700 cursor-pointer"
-                title="Download CareBridge_Care_Plan.json"
+                onClick={() => setShowJsonModal(true)}
+                className="px-2.5 sm:px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs rounded-xl shadow-xs flex items-center space-x-1.5 transition border border-slate-700 cursor-pointer"
+                title="View & Export Care Plan JSON"
               >
-                <Download className="w-3.5 h-3.5" />
+                <FileCode className="w-3.5 h-3.5 text-teal-400" />
                 <span className="hidden sm:inline">JSON</span>
               </button>
               <button
@@ -444,6 +544,7 @@ export const PatientCareSheet: React.FC<PatientCareSheetProps> = ({
             {sheetContent}
           </div>
         </div>
+        {jsonModalElement}
       </div>
     );
   }
@@ -493,12 +594,12 @@ export const PatientCareSheet: React.FC<PatientCareSheetProps> = ({
         <div className="flex items-center space-x-2 self-stretch sm:self-auto justify-end">
           <button
             type="button"
-            onClick={handleDownloadJSON}
+            onClick={() => setShowJsonModal(true)}
             className="px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 font-bold text-xs rounded-xl shadow-2xs flex items-center space-x-1.5 transition cursor-pointer"
-            title="Download CareBridge_Care_Plan.json"
+            title="View & Export Care Plan JSON"
           >
-            <Download className="w-4 h-4 text-slate-500" />
-            <span>Export JSON</span>
+            <FileCode className="w-4 h-4 text-teal-600" />
+            <span>{isTelugu ? 'JSON వీక్షించండి' : 'View JSON'}</span>
           </button>
           <button
             type="button"
@@ -536,6 +637,7 @@ export const PatientCareSheet: React.FC<PatientCareSheetProps> = ({
       </div>
 
       {sheetContent}
+      {jsonModalElement}
     </div>
   );
 };

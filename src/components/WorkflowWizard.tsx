@@ -455,23 +455,28 @@ export const WorkflowWizard: React.FC<WorkflowWizardProps> = ({
               </span>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-              {SAMPLE_CASES.slice(0, 4).map((sample) => (
-                <div
-                  key={sample.id}
-                  onClick={() => handleSelectSample(sample)}
-                  className={`p-3 rounded-xl border text-left cursor-pointer transition ${
-                    selectedFileName === `${sample.title}.txt`
-                      ? 'border-teal-500 bg-teal-50/40 ring-1 ring-teal-400'
-                      : 'border-slate-200 bg-white hover:border-slate-300'
-                  }`}
-                >
-                  <span className="text-[9px] font-bold px-1.5 py-0.2 rounded uppercase bg-slate-100 text-slate-700 border border-slate-200">
-                    {sample.badge}
-                  </span>
-                  <h4 className="text-xs font-bold text-slate-900 mt-1">{sample.title}</h4>
-                  <p className="text-[11px] text-slate-500 truncate">{sample.subtitle}</p>
-                </div>
-              ))}
+              {SAMPLE_CASES.slice(0, 4).map((sample) => {
+                const title = interfaceLanguage === 'te' && sample.titleTe ? sample.titleTe : sample.title;
+                const subtitle = interfaceLanguage === 'te' && sample.subtitleTe ? sample.subtitleTe : sample.subtitle;
+                const badge = interfaceLanguage === 'te' && sample.badgeTe ? sample.badgeTe : sample.badge;
+                return (
+                  <div
+                    key={sample.id}
+                    onClick={() => handleSelectSample(sample)}
+                    className={`p-3 rounded-xl border text-left cursor-pointer transition ${
+                      selectedFileName === `${sample.title}.txt` || selectedFileName === `${title}.txt`
+                        ? 'border-teal-500 bg-teal-50/40 ring-1 ring-teal-400'
+                        : 'border-slate-200 bg-white hover:border-slate-300'
+                    }`}
+                  >
+                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded uppercase bg-slate-100 text-slate-700 border border-slate-200">
+                      {badge}
+                    </span>
+                    <h4 className="text-xs font-bold text-slate-900 mt-1">{title}</h4>
+                    <p className="text-[11px] text-slate-500 truncate">{subtitle}</p>
+                  </div>
+                );
+              })}
             </div>
           </div>
 

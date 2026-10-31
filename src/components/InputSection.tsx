@@ -296,14 +296,18 @@ export const InputSection: React.FC<InputSectionProps> = ({
                           ? 'bg-rose-100 text-rose-800 border border-rose-300' 
                           : 'bg-slate-100 text-slate-800 border border-slate-300'
                       }`}>
-                        {sample.badge}
+                        {selectedLanguage === 'te' && sample.badgeTe ? sample.badgeTe : sample.badge}
                       </span>
                       {selectedSampleId === sample.id && (
                         <CheckCircle2 className="w-5 h-5 text-teal-600 shrink-0 mt-0.5" />
                       )}
                     </div>
-                    <h4 className="text-xs font-bold text-slate-900">{sample.title}</h4>
-                    <p className="text-[11px] text-slate-600 font-medium mt-0.5">{sample.subtitle}</p>
+                    <h4 className="text-xs font-bold text-slate-900">
+                      {selectedLanguage === 'te' && sample.titleTe ? sample.titleTe : sample.title}
+                    </h4>
+                    <p className="text-[11px] text-slate-600 font-medium mt-0.5">
+                      {selectedLanguage === 'te' && sample.subtitleTe ? sample.subtitleTe : sample.subtitle}
+                    </p>
                   </div>
                   <p className="text-[11px] text-slate-500 mt-2 line-clamp-2">
                     {sample.description}
