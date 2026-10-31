@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Printer, 
   X, 
@@ -16,6 +16,7 @@ import {
   FileDown
 } from 'lucide-react';
 import { PatientCarePlan, FaithfulnessReport, ClinicalFacts } from '../types/careplan';
+import { downloadCarePlanJSON, downloadPrescriptionPDF, printCarePlanElement } from '../utils/exportUtils';
 
 interface PatientCareSheetProps {
   plan: PatientCarePlan;
@@ -24,7 +25,6 @@ interface PatientCareSheetProps {
   onClose?: () => void;
   onBack?: () => void;
   isPrintModal?: boolean;
-  autoPrint?: boolean;
 }
 
 export const PatientCareSheet: React.FC<PatientCareSheetProps> = ({
@@ -34,52 +34,72 @@ export const PatientCareSheet: React.FC<PatientCareSheetProps> = ({
   onClose,
   onBack,
   isPrintModal = false,
-  autoPrint = false,
 }) => {
+  const sheetRef = useRef<HTMLDivElement>(null);
   const [downloadNotice, setDownloadNotice] = useState<string | null>(null);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState<boolean>(false);
 
   const isTelugu = plan.language === 'te';
   const isVerified = report.overallStatus === 'VERIFIED_CONSISTENT';
   const verificationHash = `CB-${(facts.patientId || 'SYNTH').slice(0, 8)}-${report.passedCount}P${report.failedCount}F`;
 
-  const handlePrint = () => {
-    window.print();
-  };
-
-  const handleDownloadPDF = () => {
-    const originalTitle = document.title;
-    const cleanId = (facts.patientId || 'Discharge-Prescription').replace(/[^a-zA-Z0-9_-]/g, '_');
-    const filename = `CareBridge_Prescription_${cleanId}_${plan.language.toUpperCase()}`;
-    
-    // Set document title so the browser print-to-PDF dialog uses this filename by default
-    document.title = filename;
-
-    setDownloadNotice(
-      isTelugu 
-        ? 'ప్రిస్క్రిప్షన్ PDF సిద్ధంగా ఉంది. మీ కంప్యూటర్‌లో భద్రపరచడానికి "Save as PDF" ఎంచుకోండి.' 
-        : 'Prescription PDF ready: select "Save as PDF" destination in your browser to download.'
-    );
-
-    window.print();
-
-    setTimeout(() => {
-      document.title = originalTitle;
-    }, 1500);
-
-    setTimeout(() => {
-      setDownloadNotice(null);
-    }, 6000);
-  };
-
-  // Auto-trigger PDF download when autoPrint prop is true
-  useEffect(() => {
-    if (isPrintModal && autoPrint) {
-      const timer = setTimeout(() => {
-        handleDownloadPDF();
-      }, 350);
-      return () => clearTimeout(timer);
+  const handlePrint = async () => {
+    if (!sheetRef.current) {
+      window.print();
+      return;
     }
-  }, [isPrintModal, autoPrint]);
+    try {
+      await printCarePlanElement(sheetRef.current);
+    } catch (err: any) {
+      console.error('Print error:', err);
+      window.print();
+    }
+  };
+
+  const handleDownloadPDF = async () => {
+    if (isGeneratingPdf || !sheetRef.current) return;
+    setIsGeneratingPdf(true);
+    setDownloadError(null);
+    setDownloadNotice(null);
+
+    try {
+      await downloadPrescriptionPDF(sheetRef.current, 'CareBridge_Prescription.pdf');
+      setDownloadNotice(
+        isTelugu 
+          ? 'CareBridge_Prescription.pdf ఫైల్ విజయవంతంగా డౌన్‌లోడ్ చేయబడింది.' 
+          : 'CareBridge_Prescription.pdf downloaded successfully.'
+      );
+      setTimeout(() => setDownloadNotice(null), 4000);
+    } catch (err: any) {
+      console.error('PDF generation error:', err);
+      setDownloadError(
+        isTelugu 
+          ? 'PDF తయారీ విఫలమైంది. దయచేసి మళ్ళీ ప్రయత్నించండి.' 
+          : 'Failed to generate PDF. Please try again.'
+      );
+      setTimeout(() => setDownloadError(null), 5000);
+    } finally {
+      setIsGeneratingPdf(false);
+    }
+  };
+
+  const handleDownloadJSON = () => {
+    setDownloadError(null);
+    try {
+      downloadCarePlanJSON(plan, facts, report, 'CareBridge_Care_Plan.json');
+      setDownloadNotice(
+        isTelugu
+          ? 'CareBridge_Care_Plan.json ఫైల్ విజయవంతంగా డౌన్‌లోడ్ చేయబడింది.'
+          : 'CareBridge_Care_Plan.json downloaded successfully.'
+      );
+      setTimeout(() => setDownloadNotice(null), 4000);
+    } catch (err: any) {
+      console.error('JSON export error:', err);
+      setDownloadError(isTelugu ? 'JSON డౌన్‌లోడ్ విఫలమైంది.' : 'Failed to download JSON file.');
+      setTimeout(() => setDownloadError(null), 4000);
+    }
+  };
 
   // Close modal on Escape key press
   useEffect(() => {
@@ -93,34 +113,8 @@ export const PatientCareSheet: React.FC<PatientCareSheetProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isPrintModal, onClose, onBack]);
 
-  const handleDownloadJSON = () => {
-    const exportData = {
-      product: 'CareBridge AI',
-      generatedDate: new Date().toISOString(),
-      language: plan.language,
-      verificationStatus: report.overallStatus,
-      facts,
-      carePlan: plan,
-      validationSummary: {
-        passed: report.passedCount,
-        failed: report.failedCount,
-        unresolved: report.unresolvedCount,
-      },
-    };
-
-    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `carebridge-care-plan-${plan.language}-${Date.now()}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  };
-
   const sheetContent = (
-    <div className="printable-care-sheet bg-white p-6 sm:p-8 text-slate-900 border sm:border-slate-300 sm:rounded-2xl sm:shadow-lg max-w-4xl mx-auto font-sans">
+    <div ref={sheetRef} className="printable-care-sheet bg-white p-6 sm:p-8 text-slate-900 border sm:border-slate-300 sm:rounded-2xl sm:shadow-lg max-w-4xl mx-auto font-sans">
       {/* Header */}
       <div className="border-b-2 border-slate-900 pb-4 mb-5 flex items-start justify-between">
         <div>
@@ -381,7 +375,7 @@ export const PatientCareSheet: React.FC<PatientCareSheetProps> = ({
                 type="button"
                 onClick={handleDownloadJSON}
                 className="px-2.5 sm:px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs rounded-xl shadow-xs flex items-center space-x-1 transition border border-slate-700 cursor-pointer"
-                title="Download JSON record"
+                title="Download CareBridge_Care_Plan.json"
               >
                 <Download className="w-3.5 h-3.5" />
                 <span className="hidden sm:inline">JSON</span>
@@ -390,19 +384,33 @@ export const PatientCareSheet: React.FC<PatientCareSheetProps> = ({
                 type="button"
                 onClick={handlePrint}
                 className="px-3 sm:px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs rounded-xl shadow-xs flex items-center space-x-1.5 transition border border-slate-700 cursor-pointer"
-                title="Print on paper"
+                title="Print patient care plan"
               >
                 <Printer className="w-4 h-4 text-teal-400" />
                 <span>{isTelugu ? 'ప్రింట్' : 'Print'}</span>
               </button>
               <button
                 type="button"
+                disabled={isGeneratingPdf}
                 onClick={handleDownloadPDF}
-                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-sm flex items-center space-x-1.5 transition cursor-pointer ring-1 ring-emerald-400/50"
-                title="Download Prescription as PDF"
+                className={`px-4 py-2 text-white font-bold text-xs rounded-xl shadow-sm flex items-center space-x-1.5 transition cursor-pointer ring-1 ring-emerald-400/50 ${
+                  isGeneratingPdf
+                    ? 'bg-emerald-800 opacity-80 cursor-wait'
+                    : 'bg-emerald-600 hover:bg-emerald-500'
+                }`}
+                title="Download CareBridge_Prescription.pdf"
               >
-                <FileDown className="w-4 h-4" />
-                <span>{isTelugu ? 'PDF డౌన్‌లోడ్' : 'Download Prescription PDF'}</span>
+                {isGeneratingPdf ? (
+                  <>
+                    <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <span>{isTelugu ? 'PDF తయారవుతోంది...' : 'Generating PDF...'}</span>
+                  </>
+                ) : (
+                  <>
+                    <FileDown className="w-4 h-4" />
+                    <span>{isTelugu ? 'PDF డౌన్‌లోడ్' : 'Download Prescription PDF'}</span>
+                  </>
+                )}
               </button>
               {onClose && (
                 <button
@@ -425,6 +433,13 @@ export const PatientCareSheet: React.FC<PatientCareSheetProps> = ({
             </div>
           )}
 
+          {downloadError && (
+            <div className="no-print bg-rose-800 text-rose-50 px-4 py-2.5 text-xs font-semibold flex items-center space-x-2 border-b border-rose-700">
+              <AlertTriangle className="w-4 h-4 text-rose-300 shrink-0" />
+              <span>{downloadError}</span>
+            </div>
+          )}
+
           <div className="p-3 sm:p-6 bg-slate-100">
             {sheetContent}
           </div>
@@ -440,6 +455,13 @@ export const PatientCareSheet: React.FC<PatientCareSheetProps> = ({
         <div className="no-print mb-4 p-3.5 rounded-xl bg-teal-50 border border-teal-200 text-teal-900 text-xs font-semibold flex items-center space-x-2 shadow-2xs">
           <CheckCircle className="w-4 h-4 text-teal-600 shrink-0" />
           <span>{downloadNotice}</span>
+        </div>
+      )}
+
+      {downloadError && (
+        <div className="no-print mb-4 p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-900 text-xs font-semibold flex items-center space-x-2 shadow-2xs">
+          <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+          <span>{downloadError}</span>
         </div>
       )}
 
@@ -473,7 +495,7 @@ export const PatientCareSheet: React.FC<PatientCareSheetProps> = ({
             type="button"
             onClick={handleDownloadJSON}
             className="px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 font-bold text-xs rounded-xl shadow-2xs flex items-center space-x-1.5 transition cursor-pointer"
-            title="Export JSON record"
+            title="Download CareBridge_Care_Plan.json"
           >
             <Download className="w-4 h-4 text-slate-500" />
             <span>Export JSON</span>
@@ -482,19 +504,33 @@ export const PatientCareSheet: React.FC<PatientCareSheetProps> = ({
             type="button"
             onClick={handlePrint}
             className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs rounded-xl border border-slate-300 shadow-2xs flex items-center space-x-1.5 transition cursor-pointer"
-            title="Print on paper"
+            title="Print patient care plan"
           >
             <Printer className="w-4 h-4 text-slate-700" />
             <span>{isTelugu ? 'ప్రింట్' : 'Print'}</span>
           </button>
           <button
             type="button"
+            disabled={isGeneratingPdf}
             onClick={handleDownloadPDF}
-            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs flex items-center space-x-1.5 transition cursor-pointer"
-            title="Download as PDF file"
+            className={`px-4 py-2 text-white font-bold text-xs rounded-xl shadow-xs flex items-center space-x-1.5 transition cursor-pointer ${
+              isGeneratingPdf
+                ? 'bg-emerald-800 opacity-80 cursor-wait'
+                : 'bg-emerald-600 hover:bg-emerald-700'
+            }`}
+            title="Download CareBridge_Prescription.pdf"
           >
-            <FileDown className="w-4 h-4" />
-            <span>{isTelugu ? 'PDF డౌన్‌లోడ్' : 'Download as PDF'}</span>
+            {isGeneratingPdf ? (
+              <>
+                <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                <span>{isTelugu ? 'PDF తయారవుతోంది...' : 'Generating PDF...'}</span>
+              </>
+            ) : (
+              <>
+                <FileDown className="w-4 h-4" />
+                <span>{isTelugu ? 'PDF డౌన్‌లోడ్' : 'Download Prescription PDF'}</span>
+              </>
+            )}
           </button>
         </div>
       </div>

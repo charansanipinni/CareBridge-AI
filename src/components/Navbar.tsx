@@ -24,7 +24,7 @@ interface NavbarProps {
   interfaceLanguage: LanguageCode;
   onLanguageToggle: (lang: LanguageCode) => void;
   mode: ProcessingMode;
-  onOpenPrint?: (autoDownload?: boolean) => void;
+  onOpenPrint?: () => void;
   onOpenHelp: () => void;
   onOpenPrivacy: () => void;
   hasResult: boolean;
@@ -165,12 +165,12 @@ export const Navbar: React.FC<NavbarProps> = ({
           {/* Print Action if results available */}
           {hasResult && onOpenPrint && (
             <button
-              onClick={() => onOpenPrint(true)}
+              onClick={onOpenPrint}
               className="hidden sm:inline-flex items-center px-3.5 py-2 text-xs font-bold rounded-xl bg-slate-900 text-white hover:bg-slate-800 transition shadow-xs cursor-pointer border border-slate-700"
-              title="Download Prescription as PDF or Print Care Sheet"
+              title="Print Care Sheet or Download as PDF"
             >
               <Printer className="w-3.5 h-3.5 mr-1.5 text-teal-400" />
-              <span>{interfaceLanguage === 'te' ? 'ప్రిస్క్రిప్షన్ ప్రింట్ / PDF' : 'Print Care Sheet'}</span>
+              <span>{interfaceLanguage === 'te' ? 'కేర్ షీట్ ప్రింట్ / PDF' : 'Print Care Sheet'}</span>
             </button>
           )}
 
