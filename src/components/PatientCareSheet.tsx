@@ -24,6 +24,7 @@ interface PatientCareSheetProps {
   onClose?: () => void;
   onBack?: () => void;
   isPrintModal?: boolean;
+  autoPrint?: boolean;
 }
 
 export const PatientCareSheet: React.FC<PatientCareSheetProps> = ({
@@ -33,6 +34,7 @@ export const PatientCareSheet: React.FC<PatientCareSheetProps> = ({
   onClose,
   onBack,
   isPrintModal = false,
+  autoPrint = false,
 }) => {
   const [downloadNotice, setDownloadNotice] = useState<string | null>(null);
 
@@ -46,16 +48,16 @@ export const PatientCareSheet: React.FC<PatientCareSheetProps> = ({
 
   const handleDownloadPDF = () => {
     const originalTitle = document.title;
-    const cleanId = (facts.patientId || 'Discharge-Plan').replace(/[^a-zA-Z0-9_-]/g, '_');
-    const filename = `CareBridge_Care_Plan_${cleanId}_${plan.language.toUpperCase()}`;
+    const cleanId = (facts.patientId || 'Discharge-Prescription').replace(/[^a-zA-Z0-9_-]/g, '_');
+    const filename = `CareBridge_Prescription_${cleanId}_${plan.language.toUpperCase()}`;
     
     // Set document title so the browser print-to-PDF dialog uses this filename by default
     document.title = filename;
 
     setDownloadNotice(
       isTelugu 
-        ? 'ప్రింట్ విండో తెరవబడింది. మీ పరికరంలో భద్రపరచడానికి "Save as PDF" ఎంచుకోండి.' 
-        : 'Print dialog opened: select "Save as PDF" to download your care sheet.'
+        ? 'ప్రిస్క్రిప్షన్ PDF సిద్ధంగా ఉంది. మీ కంప్యూటర్‌లో భద్రపరచడానికి "Save as PDF" ఎంచుకోండి.' 
+        : 'Prescription PDF ready: select "Save as PDF" destination in your browser to download.'
     );
 
     window.print();
@@ -66,8 +68,18 @@ export const PatientCareSheet: React.FC<PatientCareSheetProps> = ({
 
     setTimeout(() => {
       setDownloadNotice(null);
-    }, 5000);
+    }, 6000);
   };
+
+  // Auto-trigger PDF download when autoPrint prop is true
+  useEffect(() => {
+    if (isPrintModal && autoPrint) {
+      const timer = setTimeout(() => {
+        handleDownloadPDF();
+      }, 350);
+      return () => clearTimeout(timer);
+    }
+  }, [isPrintModal, autoPrint]);
 
   // Close modal on Escape key press
   useEffect(() => {
@@ -334,32 +346,32 @@ export const PatientCareSheet: React.FC<PatientCareSheetProps> = ({
   if (isPrintModal) {
     return (
       <div 
-        className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs overflow-y-auto flex items-center justify-center p-3 sm:p-4"
+        className="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-xs overflow-y-auto p-2 sm:p-4 md:py-8 flex justify-center items-start"
         onClick={(e) => {
           if (e.target === e.currentTarget && (onClose || onBack)) {
             (onClose || onBack)!();
           }
         }}
       >
-        <div className="relative w-full max-w-4xl my-6">
-          {/* Action header bar (hidden when printed) */}
-          <div className="no-print flex flex-wrap items-center justify-between gap-3 bg-slate-900 text-white p-3.5 sm:p-4 rounded-t-2xl shadow-md border-b border-slate-800">
+        <div className="relative w-full max-w-4xl my-2 sm:my-4 bg-white rounded-2xl shadow-2xl overflow-hidden border border-slate-300">
+          {/* STICKY ACTION HEADER BAR - ALWAYS VISIBLE AT THE TOP */}
+          <div className="sticky top-0 z-30 no-print flex flex-wrap items-center justify-between gap-3 bg-slate-900 text-white px-4 py-3 sm:px-6 sm:py-3.5 shadow-md border-b border-slate-800">
             <div className="flex items-center space-x-2 sm:space-x-3">
               {(onBack || onClose) && (
                 <button
                   type="button"
                   onClick={onBack || onClose}
-                  className="inline-flex items-center space-x-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-100 font-bold text-xs rounded-xl transition border border-slate-700 hover:border-slate-500 shadow-2xs cursor-pointer"
+                  className="inline-flex items-center space-x-1.5 px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded-xl transition border border-slate-600 hover:border-teal-400 shadow-xs cursor-pointer"
                   title={isTelugu ? 'సంరక్షణ ప్రణాళికకు తిరిగి వెళ్లండి' : 'Back to Care Plan'}
                 >
                   <ArrowLeft className="w-4 h-4 text-teal-400" />
-                  <span>{isTelugu ? '← వెనుకకు' : '← Back'}</span>
+                  <span>{isTelugu ? '← వెనుకకు' : '← Back to Care Plan'}</span>
                 </button>
               )}
               <div className="flex items-center space-x-2">
-                <Printer className="w-4 h-4 sm:w-5 sm:h-5 text-teal-400 shrink-0" />
-                <span className="font-bold text-xs sm:text-sm tracking-tight">
-                  {isTelugu ? 'ముద్రించదగిన రోగి సంరక్షణ పత్రం (A4 ఫార్మాట్)' : 'Printable Patient Care Sheet (A4 Format)'}
+                <Printer className="w-4 h-4 text-teal-400 shrink-0" />
+                <span className="font-bold text-xs sm:text-sm tracking-tight text-slate-100">
+                  {isTelugu ? 'రోగి డిశ్చార్జ్ సంరక్షణ ప్రిస్క్రిప్షన్ (A4)' : 'Prescription & Care Sheet (A4)'}
                 </span>
               </div>
             </div>
@@ -368,7 +380,7 @@ export const PatientCareSheet: React.FC<PatientCareSheetProps> = ({
               <button
                 type="button"
                 onClick={handleDownloadJSON}
-                className="px-2.5 sm:px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs rounded-xl shadow-xs flex items-center space-x-1 transition border border-slate-700 cursor-pointer"
+                className="px-2.5 sm:px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs rounded-xl shadow-xs flex items-center space-x-1 transition border border-slate-700 cursor-pointer"
                 title="Download JSON record"
               >
                 <Download className="w-3.5 h-3.5" />
@@ -377,7 +389,7 @@ export const PatientCareSheet: React.FC<PatientCareSheetProps> = ({
               <button
                 type="button"
                 onClick={handlePrint}
-                className="px-3 sm:px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-100 font-bold text-xs rounded-xl shadow-xs flex items-center space-x-1.5 transition border border-slate-700 cursor-pointer"
+                className="px-3 sm:px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs rounded-xl shadow-xs flex items-center space-x-1.5 transition border border-slate-700 cursor-pointer"
                 title="Print on paper"
               >
                 <Printer className="w-4 h-4 text-teal-400" />
@@ -386,18 +398,18 @@ export const PatientCareSheet: React.FC<PatientCareSheetProps> = ({
               <button
                 type="button"
                 onClick={handleDownloadPDF}
-                className="px-3.5 sm:px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-sm flex items-center space-x-1.5 transition cursor-pointer"
-                title="Download as PDF file"
+                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-sm flex items-center space-x-1.5 transition cursor-pointer ring-1 ring-emerald-400/50"
+                title="Download Prescription as PDF"
               >
                 <FileDown className="w-4 h-4" />
-                <span>{isTelugu ? 'PDF డౌన్‌లోడ్' : 'Download as PDF'}</span>
+                <span>{isTelugu ? 'PDF డౌన్‌లోడ్' : 'Download Prescription PDF'}</span>
               </button>
               {onClose && (
                 <button
                   type="button"
                   onClick={onClose}
                   className="p-1.5 text-slate-400 hover:text-white rounded-lg transition ml-1 cursor-pointer"
-                  title="Close"
+                  title="Close (Esc)"
                   aria-label="Close"
                 >
                   <X className="w-5 h-5" />
@@ -407,13 +419,13 @@ export const PatientCareSheet: React.FC<PatientCareSheetProps> = ({
           </div>
 
           {downloadNotice && (
-            <div className="no-print bg-teal-800 text-teal-50 px-4 py-2.5 text-xs font-medium flex items-center space-x-2 border-b border-teal-700">
+            <div className="no-print bg-teal-800 text-teal-50 px-4 py-2.5 text-xs font-semibold flex items-center space-x-2 border-b border-teal-700">
               <CheckCircle className="w-4 h-4 text-teal-300 shrink-0" />
               <span>{downloadNotice}</span>
             </div>
           )}
 
-          <div className="rounded-b-2xl overflow-hidden bg-slate-100 p-2 sm:p-4">
+          <div className="p-3 sm:p-6 bg-slate-100">
             {sheetContent}
           </div>
         </div>

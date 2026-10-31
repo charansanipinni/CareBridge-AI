@@ -42,9 +42,15 @@ export function App() {
 
   // Modals
   const [showPrintModal, setShowPrintModal] = useState<boolean>(false);
+  const [autoPrintOnOpen, setAutoPrintOnOpen] = useState<boolean>(false);
   const [showHelpModal, setShowHelpModal] = useState<boolean>(false);
   const [showPrivacyModal, setShowPrivacyModal] = useState<boolean>(false);
   const [showArchitectureModal, setShowArchitectureModal] = useState<boolean>(false);
+
+  const handleOpenPrint = (autoDownload = true) => {
+    setAutoPrintOnOpen(autoDownload);
+    setShowPrintModal(true);
+  };
 
   // Active result & session history
   const [result, setResult] = useState<CareBridgeResult | null>(null);
@@ -204,7 +210,7 @@ export function App() {
         interfaceLanguage={interfaceLanguage}
         onLanguageToggle={handleLanguageToggle}
         mode={processingMode}
-        onOpenPrint={() => setShowPrintModal(true)}
+        onOpenPrint={handleOpenPrint}
         onOpenHelp={() => setShowHelpModal(true)}
         onOpenPrivacy={() => setShowPrivacyModal(true)}
         hasResult={Boolean(result)}
@@ -231,7 +237,7 @@ export function App() {
             onProcess={processDischargeSummary}
             isProcessing={isProcessing}
             result={result}
-            onOpenPrint={() => setShowPrintModal(true)}
+            onOpenPrint={() => handleOpenPrint(true)}
             isDriftActive={isDriftActive}
             driftDescription={driftDescription}
             onApplyDrift={handleApplyDrift}
@@ -274,8 +280,15 @@ export function App() {
           facts={result.facts}
           report={activeReport}
           isPrintModal={true}
-          onClose={() => setShowPrintModal(false)}
-          onBack={() => setShowPrintModal(false)}
+          autoPrint={autoPrintOnOpen}
+          onClose={() => {
+            setShowPrintModal(false);
+            setAutoPrintOnOpen(false);
+          }}
+          onBack={() => {
+            setShowPrintModal(false);
+            setAutoPrintOnOpen(false);
+          }}
         />
       )}
 
