@@ -267,7 +267,7 @@ export function App() {
         )}
       </main>
 
-      {/* Printable Modal View if opened from top navbar */}
+      {/* Printable Modal View if opened from top navbar or actions */}
       {showPrintModal && result && activePlan && activeReport && (
         <PatientCareSheet
           plan={activePlan}
@@ -275,6 +275,7 @@ export function App() {
           report={activeReport}
           isPrintModal={true}
           onClose={() => setShowPrintModal(false)}
+          onBack={() => setShowPrintModal(false)}
         />
       )}
 

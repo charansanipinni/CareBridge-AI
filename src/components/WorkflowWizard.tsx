@@ -24,7 +24,8 @@ import {
   Download,
   BookOpen,
   HelpCircle,
-  FolderOpen
+  FolderOpen,
+  FileDown
 } from 'lucide-react';
 import { SAMPLE_CASES, SampleCase } from '../data/sampleSummaries';
 import { CareBridgeResult, LanguageCode, PatientCarePlan, FaithfulnessReport } from '../types/careplan';
@@ -907,13 +908,25 @@ export const WorkflowWizard: React.FC<WorkflowWizardProps> = ({
               </button>
             </div>
 
-            {/* Quick Action: New Document */}
-            <button
-              onClick={() => setCurrentStep(1)}
-              className="text-xs font-semibold text-teal-700 hover:text-teal-900 pb-2"
-            >
-              + {ui.results.createAnother}
-            </button>
+            {/* Quick Action: Download PDF & New Document */}
+            <div className="flex items-center space-x-2.5 pb-2">
+              <button
+                type="button"
+                onClick={onOpenPrint}
+                className="inline-flex items-center space-x-1.5 text-xs font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-3 py-1.5 rounded-xl transition shadow-2xs cursor-pointer"
+                title="Download or print single-page care plan"
+              >
+                <FileDown className="w-3.5 h-3.5 text-emerald-600" />
+                <span>{interfaceLanguage === 'te' ? 'PDF డౌన్‌లోడ్' : 'Download PDF'}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setCurrentStep(1)}
+                className="text-xs font-semibold text-teal-700 hover:text-teal-900 cursor-pointer"
+              >
+                + {ui.results.createAnother}
+              </button>
+            </div>
           </div>
 
           {/* Sub-Tab Contents */}
@@ -977,6 +990,7 @@ export const WorkflowWizard: React.FC<WorkflowWizardProps> = ({
                 plan={activePlan}
                 facts={result.facts}
                 report={activeReport}
+                onBack={() => setResultsTab('plan')}
               />
             )}
           </div>

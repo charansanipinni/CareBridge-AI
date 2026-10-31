@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Printer, 
   X, 
@@ -11,7 +11,9 @@ import {
   HelpCircle,
   Download,
   QrCode,
-  FileCode
+  FileCode,
+  ArrowLeft,
+  FileDown
 } from 'lucide-react';
 import { PatientCarePlan, FaithfulnessReport, ClinicalFacts } from '../types/careplan';
 
@@ -20,6 +22,7 @@ interface PatientCareSheetProps {
   facts: ClinicalFacts;
   report: FaithfulnessReport;
   onClose?: () => void;
+  onBack?: () => void;
   isPrintModal?: boolean;
 }
 
@@ -28,11 +31,55 @@ export const PatientCareSheet: React.FC<PatientCareSheetProps> = ({
   facts,
   report,
   onClose,
+  onBack,
   isPrintModal = false,
 }) => {
+  const [downloadNotice, setDownloadNotice] = useState<string | null>(null);
+
+  const isTelugu = plan.language === 'te';
+  const isVerified = report.overallStatus === 'VERIFIED_CONSISTENT';
+  const verificationHash = `CB-${(facts.patientId || 'SYNTH').slice(0, 8)}-${report.passedCount}P${report.failedCount}F`;
+
   const handlePrint = () => {
     window.print();
   };
+
+  const handleDownloadPDF = () => {
+    const originalTitle = document.title;
+    const cleanId = (facts.patientId || 'Discharge-Plan').replace(/[^a-zA-Z0-9_-]/g, '_');
+    const filename = `CareBridge_Care_Plan_${cleanId}_${plan.language.toUpperCase()}`;
+    
+    // Set document title so the browser print-to-PDF dialog uses this filename by default
+    document.title = filename;
+
+    setDownloadNotice(
+      isTelugu 
+        ? 'ప్రింట్ విండో తెరవబడింది. మీ పరికరంలో భద్రపరచడానికి "Save as PDF" ఎంచుకోండి.' 
+        : 'Print dialog opened: select "Save as PDF" to download your care sheet.'
+    );
+
+    window.print();
+
+    setTimeout(() => {
+      document.title = originalTitle;
+    }, 1500);
+
+    setTimeout(() => {
+      setDownloadNotice(null);
+    }, 5000);
+  };
+
+  // Close modal on Escape key press
+  useEffect(() => {
+    if (!isPrintModal) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && (onClose || onBack)) {
+        (onClose || onBack)!();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isPrintModal, onClose, onBack]);
 
   const handleDownloadJSON = () => {
     const exportData = {
@@ -59,10 +106,6 @@ export const PatientCareSheet: React.FC<PatientCareSheetProps> = ({
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
   };
-
-  const isTelugu = plan.language === 'te';
-  const isVerified = report.overallStatus === 'VERIFIED_CONSISTENT';
-  const verificationHash = `CB-${(facts.patientId || 'SYNTH').slice(0, 8)}-${report.passedCount}P${report.failedCount}F`;
 
   const sheetContent = (
     <div className="printable-care-sheet bg-white p-6 sm:p-8 text-slate-900 border sm:border-slate-300 sm:rounded-2xl sm:shadow-lg max-w-4xl mx-auto font-sans">
@@ -290,33 +333,72 @@ export const PatientCareSheet: React.FC<PatientCareSheetProps> = ({
   // If used as full-screen print preview modal
   if (isPrintModal) {
     return (
-      <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs overflow-y-auto flex items-center justify-center p-4">
-        <div className="relative w-full max-w-4xl my-8">
-          {/* Action buttons (hidden when printed) */}
-          <div className="no-print flex items-center justify-between bg-slate-900 text-white p-4 rounded-t-2xl shadow-md">
-            <div className="flex items-center space-x-2">
-              <Printer className="w-5 h-5 text-teal-400" />
-              <span className="font-bold text-sm">Printable Patient Care Sheet (A4 Format)</span>
+      <div 
+        className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs overflow-y-auto flex items-center justify-center p-3 sm:p-4"
+        onClick={(e) => {
+          if (e.target === e.currentTarget && (onClose || onBack)) {
+            (onClose || onBack)!();
+          }
+        }}
+      >
+        <div className="relative w-full max-w-4xl my-6">
+          {/* Action header bar (hidden when printed) */}
+          <div className="no-print flex flex-wrap items-center justify-between gap-3 bg-slate-900 text-white p-3.5 sm:p-4 rounded-t-2xl shadow-md border-b border-slate-800">
+            <div className="flex items-center space-x-2 sm:space-x-3">
+              {(onBack || onClose) && (
+                <button
+                  type="button"
+                  onClick={onBack || onClose}
+                  className="inline-flex items-center space-x-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-100 font-bold text-xs rounded-xl transition border border-slate-700 hover:border-slate-500 shadow-2xs cursor-pointer"
+                  title={isTelugu ? 'సంరక్షణ ప్రణాళికకు తిరిగి వెళ్లండి' : 'Back to Care Plan'}
+                >
+                  <ArrowLeft className="w-4 h-4 text-teal-400" />
+                  <span>{isTelugu ? '← వెనుకకు' : '← Back'}</span>
+                </button>
+              )}
+              <div className="flex items-center space-x-2">
+                <Printer className="w-4 h-4 sm:w-5 sm:h-5 text-teal-400 shrink-0" />
+                <span className="font-bold text-xs sm:text-sm tracking-tight">
+                  {isTelugu ? 'ముద్రించదగిన రోగి సంరక్షణ పత్రం (A4 ఫార్మాట్)' : 'Printable Patient Care Sheet (A4 Format)'}
+                </span>
+              </div>
             </div>
-            <div className="flex items-center space-x-2">
+
+            <div className="flex items-center space-x-1.5 sm:space-x-2">
               <button
+                type="button"
                 onClick={handleDownloadJSON}
-                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs rounded-lg shadow-xs flex items-center space-x-1 transition"
+                className="px-2.5 sm:px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs rounded-xl shadow-xs flex items-center space-x-1 transition border border-slate-700 cursor-pointer"
+                title="Download JSON record"
               >
                 <Download className="w-3.5 h-3.5" />
-                <span>JSON</span>
+                <span className="hidden sm:inline">JSON</span>
               </button>
               <button
+                type="button"
                 onClick={handlePrint}
-                className="px-4 py-1.5 bg-teal-500 hover:bg-teal-600 text-slate-900 font-bold text-xs rounded-lg shadow-sm flex items-center space-x-1.5 transition"
+                className="px-3 sm:px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-100 font-bold text-xs rounded-xl shadow-xs flex items-center space-x-1.5 transition border border-slate-700 cursor-pointer"
+                title="Print on paper"
               >
-                <Printer className="w-4 h-4" />
-                <span>Print / Save PDF</span>
+                <Printer className="w-4 h-4 text-teal-400" />
+                <span>{isTelugu ? 'ప్రింట్' : 'Print'}</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleDownloadPDF}
+                className="px-3.5 sm:px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-sm flex items-center space-x-1.5 transition cursor-pointer"
+                title="Download as PDF file"
+              >
+                <FileDown className="w-4 h-4" />
+                <span>{isTelugu ? 'PDF డౌన్‌లోడ్' : 'Download as PDF'}</span>
               </button>
               {onClose && (
                 <button
+                  type="button"
                   onClick={onClose}
-                  className="p-1.5 text-slate-400 hover:text-white rounded-lg transition"
+                  className="p-1.5 text-slate-400 hover:text-white rounded-lg transition ml-1 cursor-pointer"
+                  title="Close"
+                  aria-label="Close"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -324,7 +406,14 @@ export const PatientCareSheet: React.FC<PatientCareSheetProps> = ({
             </div>
           </div>
 
-          <div className="rounded-b-2xl overflow-hidden bg-slate-100 p-4">
+          {downloadNotice && (
+            <div className="no-print bg-teal-800 text-teal-50 px-4 py-2.5 text-xs font-medium flex items-center space-x-2 border-b border-teal-700">
+              <CheckCircle className="w-4 h-4 text-teal-300 shrink-0" />
+              <span>{downloadNotice}</span>
+            </div>
+          )}
+
+          <div className="rounded-b-2xl overflow-hidden bg-slate-100 p-2 sm:p-4">
             {sheetContent}
           </div>
         </div>
@@ -335,27 +424,65 @@ export const PatientCareSheet: React.FC<PatientCareSheetProps> = ({
   // Inline view
   return (
     <div className="mb-8">
-      <div className="no-print flex items-center justify-between mb-4">
-        <div>
-          <h3 className="text-base font-bold text-slate-900">One-Page Printable Patient Care Sheet</h3>
-          <p className="text-xs text-slate-500">
-            Formatted specifically for A4 printing or browser PDF export with zero dashboard clutter
-          </p>
+      {downloadNotice && (
+        <div className="no-print mb-4 p-3.5 rounded-xl bg-teal-50 border border-teal-200 text-teal-900 text-xs font-semibold flex items-center space-x-2 shadow-2xs">
+          <CheckCircle className="w-4 h-4 text-teal-600 shrink-0" />
+          <span>{downloadNotice}</span>
         </div>
-        <div className="flex items-center space-x-2">
+      )}
+
+      <div className="no-print bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div className="flex items-center space-x-3">
+          {(onBack || onClose) && (
+            <button
+              type="button"
+              onClick={onBack || onClose}
+              className="inline-flex items-center space-x-1.5 px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs rounded-xl border border-slate-300 transition shadow-2xs cursor-pointer"
+              title={isTelugu ? 'సంరక్షణ ప్రణాళికకు తిరిగి వెళ్లండి' : 'Back to Care Plan'}
+            >
+              <ArrowLeft className="w-4 h-4 text-teal-700" />
+              <span>{isTelugu ? '← సంరక్షణ ప్రణాళికకు తిరిగి వెళ్లండి' : '← Back to Care Plan'}</span>
+            </button>
+          )}
+          <div>
+            <h3 className="text-sm font-bold text-slate-900">
+              {isTelugu ? 'ఒక పేజీ ముద్రించదగిన రోగి సంరక్షణ పత్రం' : 'One-Page Printable Patient Care Sheet'}
+            </h3>
+            <p className="text-xs text-slate-500">
+              {isTelugu 
+                ? 'A4 పేపర్‌పై ప్రింట్ చేయడానికి లేదా PDFగా డౌన్‌లోడ్ చేయడానికి సరిపోతుంది' 
+                : 'Formatted specifically for A4 printing or browser PDF export with zero dashboard clutter'}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center space-x-2 self-stretch sm:self-auto justify-end">
           <button
+            type="button"
             onClick={handleDownloadJSON}
-            className="px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 font-bold text-xs rounded-xl shadow-2xs flex items-center space-x-1.5 transition"
+            className="px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 font-bold text-xs rounded-xl shadow-2xs flex items-center space-x-1.5 transition cursor-pointer"
+            title="Export JSON record"
           >
             <Download className="w-4 h-4 text-slate-500" />
             <span>Export JSON</span>
           </button>
           <button
+            type="button"
             onClick={handlePrint}
-            className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl shadow-xs flex items-center space-x-1.5 transition"
+            className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs rounded-xl border border-slate-300 shadow-2xs flex items-center space-x-1.5 transition cursor-pointer"
+            title="Print on paper"
           >
-            <Printer className="w-4 h-4 text-teal-400" />
-            <span>Print / Save PDF</span>
+            <Printer className="w-4 h-4 text-slate-700" />
+            <span>{isTelugu ? 'ప్రింట్' : 'Print'}</span>
+          </button>
+          <button
+            type="button"
+            onClick={handleDownloadPDF}
+            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs flex items-center space-x-1.5 transition cursor-pointer"
+            title="Download as PDF file"
+          >
+            <FileDown className="w-4 h-4" />
+            <span>{isTelugu ? 'PDF డౌన్‌లోడ్' : 'Download as PDF'}</span>
           </button>
         </div>
       </div>

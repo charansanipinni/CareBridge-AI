@@ -149,5 +149,5 @@ def test_api():
     assert passed == total, f"Only {passed}/{total} API security integration tests passed"
 
 if __name__ == "__main__":
-    success = test_api()
-    sys.exit(0 if success else 1)
+    test_api()
+    sys.exit(0)

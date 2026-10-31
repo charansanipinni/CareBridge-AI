@@ -166,10 +166,11 @@ export const Navbar: React.FC<NavbarProps> = ({
           {hasResult && onOpenPrint && (
             <button
               onClick={onOpenPrint}
-              className="hidden sm:inline-flex items-center px-3.5 py-2 text-xs font-bold rounded-xl bg-slate-900 text-white hover:bg-slate-800 transition shadow-xs"
+              className="hidden sm:inline-flex items-center px-3.5 py-2 text-xs font-bold rounded-xl bg-slate-900 text-white hover:bg-slate-800 transition shadow-xs cursor-pointer"
+              title="Print Care Sheet or Download as PDF"
             >
               <Printer className="w-3.5 h-3.5 mr-1.5 text-teal-400" />
-              <span>Print Care Sheet</span>
+              <span>{interfaceLanguage === 'te' ? 'కేర్ షీట్ ప్రింట్ / PDF' : 'Print Care Sheet'}</span>
             </button>
           )}
 
@@ -208,6 +209,19 @@ export const Navbar: React.FC<NavbarProps> = ({
               </button>
             );
           })}
+
+          {hasResult && onOpenPrint && (
+            <button
+              onClick={() => {
+                onOpenPrint();
+                setMobileMenuOpen(false);
+              }}
+              className="w-full text-left px-4 py-2.5 rounded-xl text-sm font-bold flex items-center space-x-2 bg-emerald-50 text-emerald-800 border border-emerald-200 transition cursor-pointer"
+            >
+              <Printer className="w-4 h-4 text-emerald-600" />
+              <span>{interfaceLanguage === 'te' ? 'కేర్ షీట్ ప్రింట్ / PDF డౌన్‌లోడ్' : 'Print / Download Care Sheet'}</span>
+            </button>
+          )}
 
           <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
             <button
